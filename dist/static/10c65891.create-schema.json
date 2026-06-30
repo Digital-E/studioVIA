@@ -1,0 +1,1408 @@
+[
+  {
+    "fields": [
+      {
+        "fields": [
+          {
+            "initialValue": "Architekturbüro\nZürich",
+            "name": "de",
+            "type": "string",
+            "title": "German"
+          },
+          {
+            "initialValue": "Architecture Practice\nZürich",
+            "name": "en",
+            "type": "string",
+            "title": "English"
+          }
+        ],
+        "name": "centerText",
+        "type": "object",
+        "title": "Center text"
+      },
+      {
+        "of": [
+          {
+            "fields": [
+              {
+                "options": {
+                  "list": [
+                    "image",
+                    "video"
+                  ],
+                  "layout": "radio"
+                },
+                "initialValue": "image",
+                "name": "mediaType",
+                "type": "string",
+                "title": "Type"
+              },
+              {
+                "options": {
+                  "hotspot": true
+                },
+                "name": "image",
+                "type": "image"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "uri",
+                        "constraint": {
+                          "options": {
+                            "scheme": [
+                              "/^http$/",
+                              "/^https$/"
+                            ],
+                            "allowRelative": false,
+                            "relativeOnly": false,
+                            "allowCredentials": false
+                          }
+                        }
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "videoUrl",
+                "type": "url",
+                "title": "Video URL (MP4)"
+              }
+            ],
+            "type": "object",
+            "name": "canvasMedia",
+            "title": "Media"
+          },
+          {
+            "fields": [
+              {
+                "name": "date",
+                "type": "string",
+                "title": "Date label (e.g. 10.01.27)"
+              },
+              {
+                "name": "category",
+                "type": "string",
+                "title": "Category (e.g. News)"
+              },
+              {
+                "fields": [
+                  {
+                    "of": [
+                      {
+                        "marks": {
+                          "annotations": [
+                            {
+                              "i18nTitleKey": "inputs.portable-text.annotation.link",
+                              "options": {
+                                "modal": {
+                                  "type": "popover"
+                                }
+                              },
+                              "fields": [
+                                {
+                                  "validation": [
+                                    {
+                                      "rules": [
+                                        {
+                                          "flag": "uri",
+                                          "constraint": {
+                                            "options": {
+                                              "scheme": [
+                                                "/^http$/",
+                                                "/^https$/",
+                                                "/^tel$/",
+                                                "/^mailto$/"
+                                              ],
+                                              "allowRelative": true,
+                                              "relativeOnly": false,
+                                              "allowCredentials": false
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "level": "error"
+                                    }
+                                  ],
+                                  "description": "A valid web, email, phone, or relative link.",
+                                  "name": "href",
+                                  "type": "url",
+                                  "title": "Link"
+                                }
+                              ],
+                              "name": "link",
+                              "type": "object"
+                            }
+                          ],
+                          "decorators": [
+                            {
+                              "value": "strong",
+                              "title": "Strong"
+                            },
+                            {
+                              "value": "em",
+                              "title": "Italic"
+                            },
+                            {
+                              "value": "code",
+                              "title": "Code"
+                            },
+                            {
+                              "value": "underline",
+                              "title": "Underline"
+                            },
+                            {
+                              "value": "strike-through",
+                              "title": "Strike"
+                            }
+                          ]
+                        },
+                        "lists": [
+                          {
+                            "value": "bullet",
+                            "title": "Bulleted list"
+                          },
+                          {
+                            "value": "number",
+                            "title": "Numbered list"
+                          }
+                        ],
+                        "styles": [
+                          {
+                            "value": "normal",
+                            "title": "Normal"
+                          },
+                          {
+                            "value": "h1",
+                            "title": "Heading 1"
+                          },
+                          {
+                            "value": "h2",
+                            "title": "Heading 2"
+                          },
+                          {
+                            "value": "h3",
+                            "title": "Heading 3"
+                          },
+                          {
+                            "value": "h4",
+                            "title": "Heading 4"
+                          },
+                          {
+                            "value": "h5",
+                            "title": "Heading 5"
+                          },
+                          {
+                            "value": "h6",
+                            "title": "Heading 6"
+                          },
+                          {
+                            "value": "blockquote",
+                            "title": "Quote"
+                          }
+                        ],
+                        "of": [],
+                        "type": "block"
+                      }
+                    ],
+                    "name": "de",
+                    "type": "array",
+                    "title": "German"
+                  },
+                  {
+                    "of": [
+                      {
+                        "marks": {
+                          "annotations": [
+                            {
+                              "i18nTitleKey": "inputs.portable-text.annotation.link",
+                              "options": {
+                                "modal": {
+                                  "type": "popover"
+                                }
+                              },
+                              "fields": [
+                                {
+                                  "validation": [
+                                    {
+                                      "rules": [
+                                        {
+                                          "flag": "uri",
+                                          "constraint": {
+                                            "options": {
+                                              "scheme": [
+                                                "/^http$/",
+                                                "/^https$/",
+                                                "/^tel$/",
+                                                "/^mailto$/"
+                                              ],
+                                              "allowRelative": true,
+                                              "relativeOnly": false,
+                                              "allowCredentials": false
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "level": "error"
+                                    }
+                                  ],
+                                  "description": "A valid web, email, phone, or relative link.",
+                                  "name": "href",
+                                  "type": "url",
+                                  "title": "Link"
+                                }
+                              ],
+                              "name": "link",
+                              "type": "object"
+                            }
+                          ],
+                          "decorators": [
+                            {
+                              "value": "strong",
+                              "title": "Strong"
+                            },
+                            {
+                              "value": "em",
+                              "title": "Italic"
+                            },
+                            {
+                              "value": "code",
+                              "title": "Code"
+                            },
+                            {
+                              "value": "underline",
+                              "title": "Underline"
+                            },
+                            {
+                              "value": "strike-through",
+                              "title": "Strike"
+                            }
+                          ]
+                        },
+                        "lists": [
+                          {
+                            "value": "bullet",
+                            "title": "Bulleted list"
+                          },
+                          {
+                            "value": "number",
+                            "title": "Numbered list"
+                          }
+                        ],
+                        "styles": [
+                          {
+                            "value": "normal",
+                            "title": "Normal"
+                          },
+                          {
+                            "value": "h1",
+                            "title": "Heading 1"
+                          },
+                          {
+                            "value": "h2",
+                            "title": "Heading 2"
+                          },
+                          {
+                            "value": "h3",
+                            "title": "Heading 3"
+                          },
+                          {
+                            "value": "h4",
+                            "title": "Heading 4"
+                          },
+                          {
+                            "value": "h5",
+                            "title": "Heading 5"
+                          },
+                          {
+                            "value": "h6",
+                            "title": "Heading 6"
+                          },
+                          {
+                            "value": "blockquote",
+                            "title": "Quote"
+                          }
+                        ],
+                        "of": [],
+                        "type": "block"
+                      }
+                    ],
+                    "name": "en",
+                    "type": "array",
+                    "title": "English"
+                  }
+                ],
+                "name": "title",
+                "type": "object"
+              },
+              {
+                "options": {
+                  "hotspot": true
+                },
+                "name": "backImage",
+                "type": "image",
+                "title": "Back image"
+              }
+            ],
+            "type": "object",
+            "name": "canvasPostit",
+            "title": "Post-it"
+          }
+        ],
+        "name": "canvasItems",
+        "type": "array",
+        "title": "Canvas items"
+      }
+    ],
+    "name": "homepage",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "fields": [
+          {
+            "name": "de",
+            "type": "string",
+            "title": "German"
+          },
+          {
+            "name": "en",
+            "type": "string",
+            "title": "English"
+          }
+        ],
+        "name": "title",
+        "type": "object"
+      },
+      {
+        "options": {
+          "source": "title.de"
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "name": "year",
+        "type": "number"
+      },
+      {
+        "fields": [
+          {
+            "name": "de",
+            "type": "string",
+            "title": "German"
+          },
+          {
+            "name": "en",
+            "type": "string",
+            "title": "English"
+          }
+        ],
+        "name": "location",
+        "type": "object"
+      },
+      {
+        "fields": [
+          {
+            "name": "de",
+            "type": "string",
+            "title": "German (e.g. 1. Preis)"
+          },
+          {
+            "name": "en",
+            "type": "string",
+            "title": "English (e.g. 1st Prize)"
+          }
+        ],
+        "name": "prize",
+        "type": "object",
+        "title": "Prize (optional)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "thumbnail",
+        "type": "image",
+        "title": "List thumbnail"
+      },
+      {
+        "initialValue": false,
+        "name": "isGrayed",
+        "type": "boolean",
+        "title": "Grayed out in list"
+      },
+      {
+        "initialValue": 0,
+        "name": "orderRank",
+        "type": "number",
+        "title": "Order (within year)"
+      },
+      {
+        "of": [
+          {
+            "fields": [
+              {
+                "options": {
+                  "list": [
+                    "image",
+                    "video"
+                  ],
+                  "layout": "radio"
+                },
+                "initialValue": "image",
+                "name": "slideType",
+                "type": "string",
+                "title": "Type"
+              },
+              {
+                "options": {
+                  "hotspot": true
+                },
+                "name": "image",
+                "type": "image"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "uri",
+                        "constraint": {
+                          "options": {
+                            "scheme": [
+                              "/^http$/",
+                              "/^https$/"
+                            ],
+                            "allowRelative": false,
+                            "relativeOnly": false,
+                            "allowCredentials": false
+                          }
+                        }
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "videoUrl",
+                "type": "url",
+                "title": "Video URL (MP4/HLS)"
+              },
+              {
+                "fields": [
+                  {
+                    "name": "de",
+                    "type": "string",
+                    "title": "German"
+                  },
+                  {
+                    "name": "en",
+                    "type": "string",
+                    "title": "English"
+                  }
+                ],
+                "name": "caption",
+                "type": "object",
+                "title": "Caption (optional)"
+              }
+            ],
+            "type": "object",
+            "name": "mediaSlide",
+            "title": "Image / Video slide"
+          },
+          {
+            "fields": [
+              {
+                "of": [
+                  {
+                    "fields": [
+                      {
+                        "name": "label",
+                        "type": "string",
+                        "title": "Label (e.g. Bauherrschaft)"
+                      },
+                      {
+                        "name": "value",
+                        "type": "string"
+                      }
+                    ],
+                    "type": "object",
+                    "name": "credit"
+                  }
+                ],
+                "name": "credits",
+                "type": "array"
+              },
+              {
+                "fields": [
+                  {
+                    "of": [
+                      {
+                        "marks": {
+                          "annotations": [
+                            {
+                              "i18nTitleKey": "inputs.portable-text.annotation.link",
+                              "options": {
+                                "modal": {
+                                  "type": "popover"
+                                }
+                              },
+                              "fields": [
+                                {
+                                  "validation": [
+                                    {
+                                      "rules": [
+                                        {
+                                          "flag": "uri",
+                                          "constraint": {
+                                            "options": {
+                                              "scheme": [
+                                                "/^http$/",
+                                                "/^https$/",
+                                                "/^tel$/",
+                                                "/^mailto$/"
+                                              ],
+                                              "allowRelative": true,
+                                              "relativeOnly": false,
+                                              "allowCredentials": false
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "level": "error"
+                                    }
+                                  ],
+                                  "description": "A valid web, email, phone, or relative link.",
+                                  "name": "href",
+                                  "type": "url",
+                                  "title": "Link"
+                                }
+                              ],
+                              "name": "link",
+                              "type": "object"
+                            }
+                          ],
+                          "decorators": [
+                            {
+                              "value": "strong",
+                              "title": "Strong"
+                            },
+                            {
+                              "value": "em",
+                              "title": "Italic"
+                            },
+                            {
+                              "value": "code",
+                              "title": "Code"
+                            },
+                            {
+                              "value": "underline",
+                              "title": "Underline"
+                            },
+                            {
+                              "value": "strike-through",
+                              "title": "Strike"
+                            }
+                          ]
+                        },
+                        "lists": [
+                          {
+                            "value": "bullet",
+                            "title": "Bulleted list"
+                          },
+                          {
+                            "value": "number",
+                            "title": "Numbered list"
+                          }
+                        ],
+                        "styles": [
+                          {
+                            "value": "normal",
+                            "title": "Normal"
+                          },
+                          {
+                            "value": "h1",
+                            "title": "Heading 1"
+                          },
+                          {
+                            "value": "h2",
+                            "title": "Heading 2"
+                          },
+                          {
+                            "value": "h3",
+                            "title": "Heading 3"
+                          },
+                          {
+                            "value": "h4",
+                            "title": "Heading 4"
+                          },
+                          {
+                            "value": "h5",
+                            "title": "Heading 5"
+                          },
+                          {
+                            "value": "h6",
+                            "title": "Heading 6"
+                          },
+                          {
+                            "value": "blockquote",
+                            "title": "Quote"
+                          }
+                        ],
+                        "of": [],
+                        "type": "block"
+                      }
+                    ],
+                    "name": "de",
+                    "type": "array",
+                    "title": "German"
+                  },
+                  {
+                    "of": [
+                      {
+                        "marks": {
+                          "annotations": [
+                            {
+                              "i18nTitleKey": "inputs.portable-text.annotation.link",
+                              "options": {
+                                "modal": {
+                                  "type": "popover"
+                                }
+                              },
+                              "fields": [
+                                {
+                                  "validation": [
+                                    {
+                                      "rules": [
+                                        {
+                                          "flag": "uri",
+                                          "constraint": {
+                                            "options": {
+                                              "scheme": [
+                                                "/^http$/",
+                                                "/^https$/",
+                                                "/^tel$/",
+                                                "/^mailto$/"
+                                              ],
+                                              "allowRelative": true,
+                                              "relativeOnly": false,
+                                              "allowCredentials": false
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "level": "error"
+                                    }
+                                  ],
+                                  "description": "A valid web, email, phone, or relative link.",
+                                  "name": "href",
+                                  "type": "url",
+                                  "title": "Link"
+                                }
+                              ],
+                              "name": "link",
+                              "type": "object"
+                            }
+                          ],
+                          "decorators": [
+                            {
+                              "value": "strong",
+                              "title": "Strong"
+                            },
+                            {
+                              "value": "em",
+                              "title": "Italic"
+                            },
+                            {
+                              "value": "code",
+                              "title": "Code"
+                            },
+                            {
+                              "value": "underline",
+                              "title": "Underline"
+                            },
+                            {
+                              "value": "strike-through",
+                              "title": "Strike"
+                            }
+                          ]
+                        },
+                        "lists": [
+                          {
+                            "value": "bullet",
+                            "title": "Bulleted list"
+                          },
+                          {
+                            "value": "number",
+                            "title": "Numbered list"
+                          }
+                        ],
+                        "styles": [
+                          {
+                            "value": "normal",
+                            "title": "Normal"
+                          },
+                          {
+                            "value": "h1",
+                            "title": "Heading 1"
+                          },
+                          {
+                            "value": "h2",
+                            "title": "Heading 2"
+                          },
+                          {
+                            "value": "h3",
+                            "title": "Heading 3"
+                          },
+                          {
+                            "value": "h4",
+                            "title": "Heading 4"
+                          },
+                          {
+                            "value": "h5",
+                            "title": "Heading 5"
+                          },
+                          {
+                            "value": "h6",
+                            "title": "Heading 6"
+                          },
+                          {
+                            "value": "blockquote",
+                            "title": "Quote"
+                          }
+                        ],
+                        "of": [],
+                        "type": "block"
+                      }
+                    ],
+                    "name": "en",
+                    "type": "array",
+                    "title": "English"
+                  }
+                ],
+                "name": "description",
+                "type": "object"
+              }
+            ],
+            "type": "object",
+            "name": "textSlide",
+            "title": "Text slide"
+          }
+        ],
+        "name": "slides",
+        "type": "array"
+      }
+    ],
+    "name": "project",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "fields": [
+          {
+            "of": [
+              {
+                "marks": {
+                  "annotations": [
+                    {
+                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                      "options": {
+                        "modal": {
+                          "type": "popover"
+                        }
+                      },
+                      "fields": [
+                        {
+                          "validation": [
+                            {
+                              "rules": [
+                                {
+                                  "flag": "uri",
+                                  "constraint": {
+                                    "options": {
+                                      "scheme": [
+                                        "/^http$/",
+                                        "/^https$/",
+                                        "/^tel$/",
+                                        "/^mailto$/"
+                                      ],
+                                      "allowRelative": true,
+                                      "relativeOnly": false,
+                                      "allowCredentials": false
+                                    }
+                                  }
+                                }
+                              ],
+                              "level": "error"
+                            }
+                          ],
+                          "description": "A valid web, email, phone, or relative link.",
+                          "name": "href",
+                          "type": "url",
+                          "title": "Link"
+                        }
+                      ],
+                      "name": "link",
+                      "type": "object"
+                    }
+                  ],
+                  "decorators": [
+                    {
+                      "value": "strong",
+                      "title": "Strong"
+                    },
+                    {
+                      "value": "em",
+                      "title": "Italic"
+                    },
+                    {
+                      "value": "code",
+                      "title": "Code"
+                    },
+                    {
+                      "value": "underline",
+                      "title": "Underline"
+                    },
+                    {
+                      "value": "strike-through",
+                      "title": "Strike"
+                    }
+                  ]
+                },
+                "lists": [
+                  {
+                    "value": "bullet",
+                    "title": "Bulleted list"
+                  },
+                  {
+                    "value": "number",
+                    "title": "Numbered list"
+                  }
+                ],
+                "styles": [
+                  {
+                    "value": "normal",
+                    "title": "Normal"
+                  },
+                  {
+                    "value": "h1",
+                    "title": "Heading 1"
+                  },
+                  {
+                    "value": "h2",
+                    "title": "Heading 2"
+                  },
+                  {
+                    "value": "h3",
+                    "title": "Heading 3"
+                  },
+                  {
+                    "value": "h4",
+                    "title": "Heading 4"
+                  },
+                  {
+                    "value": "h5",
+                    "title": "Heading 5"
+                  },
+                  {
+                    "value": "h6",
+                    "title": "Heading 6"
+                  },
+                  {
+                    "value": "blockquote",
+                    "title": "Quote"
+                  }
+                ],
+                "of": [],
+                "type": "block"
+              }
+            ],
+            "name": "de",
+            "type": "array",
+            "title": "German"
+          },
+          {
+            "of": [
+              {
+                "marks": {
+                  "annotations": [
+                    {
+                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                      "options": {
+                        "modal": {
+                          "type": "popover"
+                        }
+                      },
+                      "fields": [
+                        {
+                          "validation": [
+                            {
+                              "rules": [
+                                {
+                                  "flag": "uri",
+                                  "constraint": {
+                                    "options": {
+                                      "scheme": [
+                                        "/^http$/",
+                                        "/^https$/",
+                                        "/^tel$/",
+                                        "/^mailto$/"
+                                      ],
+                                      "allowRelative": true,
+                                      "relativeOnly": false,
+                                      "allowCredentials": false
+                                    }
+                                  }
+                                }
+                              ],
+                              "level": "error"
+                            }
+                          ],
+                          "description": "A valid web, email, phone, or relative link.",
+                          "name": "href",
+                          "type": "url",
+                          "title": "Link"
+                        }
+                      ],
+                      "name": "link",
+                      "type": "object"
+                    }
+                  ],
+                  "decorators": [
+                    {
+                      "value": "strong",
+                      "title": "Strong"
+                    },
+                    {
+                      "value": "em",
+                      "title": "Italic"
+                    },
+                    {
+                      "value": "code",
+                      "title": "Code"
+                    },
+                    {
+                      "value": "underline",
+                      "title": "Underline"
+                    },
+                    {
+                      "value": "strike-through",
+                      "title": "Strike"
+                    }
+                  ]
+                },
+                "lists": [
+                  {
+                    "value": "bullet",
+                    "title": "Bulleted list"
+                  },
+                  {
+                    "value": "number",
+                    "title": "Numbered list"
+                  }
+                ],
+                "styles": [
+                  {
+                    "value": "normal",
+                    "title": "Normal"
+                  },
+                  {
+                    "value": "h1",
+                    "title": "Heading 1"
+                  },
+                  {
+                    "value": "h2",
+                    "title": "Heading 2"
+                  },
+                  {
+                    "value": "h3",
+                    "title": "Heading 3"
+                  },
+                  {
+                    "value": "h4",
+                    "title": "Heading 4"
+                  },
+                  {
+                    "value": "h5",
+                    "title": "Heading 5"
+                  },
+                  {
+                    "value": "h6",
+                    "title": "Heading 6"
+                  },
+                  {
+                    "value": "blockquote",
+                    "title": "Quote"
+                  }
+                ],
+                "of": [],
+                "type": "block"
+              }
+            ],
+            "name": "en",
+            "type": "array",
+            "title": "English"
+          }
+        ],
+        "name": "projektText",
+        "type": "object",
+        "title": "\"Projekt\" text"
+      },
+      {
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "degree",
+                "type": "string",
+                "title": "Degree / Title"
+              },
+              {
+                "fields": [
+                  {
+                    "rows": 4,
+                    "name": "de",
+                    "type": "text",
+                    "title": "German"
+                  },
+                  {
+                    "rows": 4,
+                    "name": "en",
+                    "type": "text",
+                    "title": "English"
+                  }
+                ],
+                "name": "bio",
+                "type": "object"
+              }
+            ],
+            "type": "object",
+            "name": "teamMember"
+          }
+        ],
+        "name": "teamMembers",
+        "type": "array",
+        "title": "Team members"
+      },
+      {
+        "fields": [
+          {
+            "rows": 2,
+            "name": "address",
+            "type": "text"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "phone",
+            "type": "string"
+          },
+          {
+            "name": "foundingYear",
+            "type": "string",
+            "title": "Founding year"
+          },
+          {
+            "name": "legalForm",
+            "type": "string",
+            "title": "Legal form"
+          },
+          {
+            "name": "uid",
+            "type": "string",
+            "title": "UID / CHE number"
+          },
+          {
+            "name": "mwst",
+            "type": "string",
+            "title": "MWST number"
+          }
+        ],
+        "name": "contactInfo",
+        "type": "object",
+        "title": "Contact / Imprint"
+      },
+      {
+        "fields": [
+          {
+            "of": [
+              {
+                "marks": {
+                  "annotations": [
+                    {
+                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                      "options": {
+                        "modal": {
+                          "type": "popover"
+                        }
+                      },
+                      "fields": [
+                        {
+                          "validation": [
+                            {
+                              "rules": [
+                                {
+                                  "flag": "uri",
+                                  "constraint": {
+                                    "options": {
+                                      "scheme": [
+                                        "/^http$/",
+                                        "/^https$/",
+                                        "/^tel$/",
+                                        "/^mailto$/"
+                                      ],
+                                      "allowRelative": true,
+                                      "relativeOnly": false,
+                                      "allowCredentials": false
+                                    }
+                                  }
+                                }
+                              ],
+                              "level": "error"
+                            }
+                          ],
+                          "description": "A valid web, email, phone, or relative link.",
+                          "name": "href",
+                          "type": "url",
+                          "title": "Link"
+                        }
+                      ],
+                      "name": "link",
+                      "type": "object"
+                    }
+                  ],
+                  "decorators": [
+                    {
+                      "value": "strong",
+                      "title": "Strong"
+                    },
+                    {
+                      "value": "em",
+                      "title": "Italic"
+                    },
+                    {
+                      "value": "code",
+                      "title": "Code"
+                    },
+                    {
+                      "value": "underline",
+                      "title": "Underline"
+                    },
+                    {
+                      "value": "strike-through",
+                      "title": "Strike"
+                    }
+                  ]
+                },
+                "lists": [
+                  {
+                    "value": "bullet",
+                    "title": "Bulleted list"
+                  },
+                  {
+                    "value": "number",
+                    "title": "Numbered list"
+                  }
+                ],
+                "styles": [
+                  {
+                    "value": "normal",
+                    "title": "Normal"
+                  },
+                  {
+                    "value": "h1",
+                    "title": "Heading 1"
+                  },
+                  {
+                    "value": "h2",
+                    "title": "Heading 2"
+                  },
+                  {
+                    "value": "h3",
+                    "title": "Heading 3"
+                  },
+                  {
+                    "value": "h4",
+                    "title": "Heading 4"
+                  },
+                  {
+                    "value": "h5",
+                    "title": "Heading 5"
+                  },
+                  {
+                    "value": "h6",
+                    "title": "Heading 6"
+                  },
+                  {
+                    "value": "blockquote",
+                    "title": "Quote"
+                  }
+                ],
+                "of": [],
+                "type": "block"
+              }
+            ],
+            "name": "de",
+            "type": "array",
+            "title": "German"
+          },
+          {
+            "of": [
+              {
+                "marks": {
+                  "annotations": [
+                    {
+                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                      "options": {
+                        "modal": {
+                          "type": "popover"
+                        }
+                      },
+                      "fields": [
+                        {
+                          "validation": [
+                            {
+                              "rules": [
+                                {
+                                  "flag": "uri",
+                                  "constraint": {
+                                    "options": {
+                                      "scheme": [
+                                        "/^http$/",
+                                        "/^https$/",
+                                        "/^tel$/",
+                                        "/^mailto$/"
+                                      ],
+                                      "allowRelative": true,
+                                      "relativeOnly": false,
+                                      "allowCredentials": false
+                                    }
+                                  }
+                                }
+                              ],
+                              "level": "error"
+                            }
+                          ],
+                          "description": "A valid web, email, phone, or relative link.",
+                          "name": "href",
+                          "type": "url",
+                          "title": "Link"
+                        }
+                      ],
+                      "name": "link",
+                      "type": "object"
+                    }
+                  ],
+                  "decorators": [
+                    {
+                      "value": "strong",
+                      "title": "Strong"
+                    },
+                    {
+                      "value": "em",
+                      "title": "Italic"
+                    },
+                    {
+                      "value": "code",
+                      "title": "Code"
+                    },
+                    {
+                      "value": "underline",
+                      "title": "Underline"
+                    },
+                    {
+                      "value": "strike-through",
+                      "title": "Strike"
+                    }
+                  ]
+                },
+                "lists": [
+                  {
+                    "value": "bullet",
+                    "title": "Bulleted list"
+                  },
+                  {
+                    "value": "number",
+                    "title": "Numbered list"
+                  }
+                ],
+                "styles": [
+                  {
+                    "value": "normal",
+                    "title": "Normal"
+                  },
+                  {
+                    "value": "h1",
+                    "title": "Heading 1"
+                  },
+                  {
+                    "value": "h2",
+                    "title": "Heading 2"
+                  },
+                  {
+                    "value": "h3",
+                    "title": "Heading 3"
+                  },
+                  {
+                    "value": "h4",
+                    "title": "Heading 4"
+                  },
+                  {
+                    "value": "h5",
+                    "title": "Heading 5"
+                  },
+                  {
+                    "value": "h6",
+                    "title": "Heading 6"
+                  },
+                  {
+                    "value": "blockquote",
+                    "title": "Quote"
+                  }
+                ],
+                "of": [],
+                "type": "block"
+              }
+            ],
+            "name": "en",
+            "type": "array",
+            "title": "English"
+          }
+        ],
+        "name": "legalText",
+        "type": "object",
+        "title": "Legal / Imprint text"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "photo",
+        "type": "image",
+        "title": "Team photo"
+      }
+    ],
+    "name": "studioPage",
+    "type": "document"
+  }
+]

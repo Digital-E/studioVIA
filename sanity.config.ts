@@ -4,8 +4,8 @@ import { visionTool } from '@sanity/vision'
 import { presentationTool } from 'sanity/presentation'
 import { schemas } from './sanity/schemas'
 
-const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
-const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET!
+const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? 'r0r7pkb1'
+const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET ?? 'production'
 
 export default defineConfig({
   basePath: '/studio',

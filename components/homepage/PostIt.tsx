@@ -1,6 +1,7 @@
 'use client'
 import Image from 'next/image'
 import { PortableText } from '@portabletext/react'
+import type { PortableTextComponents } from '@portabletext/react'
 import { urlFor } from '@/lib/sanity'
 import type { CanvasItem } from '@/lib/types'
 
@@ -9,9 +10,9 @@ interface PostItProps {
   locale: string
 }
 
-const titleComponents = {
+const titleComponents: PortableTextComponents = {
   block: {
-    normal: ({ children }: { children: React.ReactNode }) => (
+    normal: ({ children }) => (
       <p className="font-build text-sm leading-snug font-medium">{children}</p>
     ),
   },
@@ -32,7 +33,7 @@ export default function PostIt({ item, locale }: PostItProps) {
           </div>
           <div className="mt-8">
             {titleBlocks && (
-              <PortableText value={titleBlocks as Parameters<typeof PortableText>[0]['value']} components={titleComponents} />
+              <PortableText value={titleBlocks as any} components={titleComponents} />
             )}
           </div>
         </div>
