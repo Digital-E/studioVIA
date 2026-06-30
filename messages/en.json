@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "studio": "Studio"
+  },
+  "projects": {
+    "year": "YEAR",
+    "name": "PROJECT NAME",
+    "location": "LOCATION"
+  },
+  "studio": {
+    "project": "Project",
+    "team": "Team"
+  }
+}

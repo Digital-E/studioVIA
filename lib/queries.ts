@@ -1,0 +1,65 @@
+export const homepageQuery = `
+  *[_type == "homepage"][0] {
+    centerText,
+    canvasItems[] {
+      _key,
+      _type,
+      mediaType,
+      image { asset->, ...},
+      videoUrl,
+      date,
+      category,
+      title,
+      backImage { asset->, ... }
+    }
+  }
+`
+
+export const projectsListQuery = `
+  *[_type == "project"] | order(year desc, orderRank asc) {
+    _id,
+    title,
+    slug,
+    year,
+    location,
+    prize,
+    thumbnail { asset-> },
+    isGrayed,
+  }
+`
+
+export const projectQuery = `
+  *[_type == "project" && slug.current == $slug][0] {
+    _id,
+    title,
+    slug,
+    year,
+    location,
+    prize,
+    slides[] {
+      _key,
+      _type,
+      slideType,
+      image { asset->, ...},
+      videoUrl,
+      caption,
+      credits[] { _key, label, value },
+      description,
+    }
+  }
+`
+
+export const studioPageQuery = `
+  *[_type == "studioPage"][0] {
+    projektText,
+    teamMembers[] {
+      _key,
+      name,
+      degree,
+      bio,
+    },
+    contactInfo,
+    legalText,
+    photo { asset->, ... }
+  }
+`

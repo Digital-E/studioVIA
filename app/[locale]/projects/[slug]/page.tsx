@@ -1,0 +1,38 @@
+import { draftMode } from 'next/headers'
+import { notFound } from 'next/navigation'
+import { getClient } from '@/lib/sanity'
+import { projectQuery, projectsListQuery } from '@/lib/queries'
+import type { Project } from '@/lib/types'
+import ProjectSlider from '@/components/projects/ProjectSlider'
+import Navigation from '@/components/Navigation'
+
+export async function generateStaticParams() {
+  const projects: Project[] = await getClient().fetch(projectsListQuery)
+  return projects
+    .filter((p) => p.slug?.current && !p.isGrayed)
+    .map((p) => ({ slug: p.slug.current }))
+}
+
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>
+}) {
+  const { locale, slug } = await params
+  const { isEnabled: preview } = await draftMode()
+  const project: Project | null = await getClient(preview).fetch(projectQuery, { slug })
+
+  if (!project) notFound()
+
+  const title = locale === 'de' ? project.title.de : (project.title.en ?? project.title.de)
+
+  return (
+    <main className="w-screen h-screen overflow-hidden bg-white">
+      <Navigation locale={locale} activePage="projects" />
+      <div className="fixed top-0 left-0 right-0 z-20 flex items-start justify-center pt-4 pointer-events-none">
+        <h1 className="text-sm font-build text-center max-w-md leading-tight">{title}</h1>
+      </div>
+      <ProjectSlider slides={project.slides ?? []} locale={locale} />
+    </main>
+  )
+}
