@@ -18,6 +18,7 @@ export interface CanvasItem {
   mediaType?: 'image' | 'video'
   image?: SanityImageRef
   videoUrl?: string
+  credit?: string
   // postit
   date?: string
   category?: string

@@ -354,11 +354,13 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     >
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
         <div className="text-center">
-          <span className="block font-build text-sm leading-relaxed">Studio</span>
-          <span className="block font-build text-sm font-medium leading-relaxed">VIA</span>
-          {lines.map((line, i) => (
-            <span key={i} className="block font-build text-sm text-via-gray leading-snug">{line}</span>
-          ))}
+          <span className="block font-build text-3xl leading-none">Studio</span>
+          <span className="block font-build text-3xl font-medium leading-none">VIA</span>
+          <div style={{ marginTop: 30 }}>
+            {lines.map((line, i) => (
+              <span key={i} className="block font-build text-3xl text-via-gray leading-none">{line}</span>
+            ))}
+          </div>
         </div>
       </div>
 

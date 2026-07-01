@@ -7,6 +7,7 @@ export const homepageQuery = `
       mediaType,
       image { asset->, ...},
       videoUrl,
+      credit,
       date,
       category,
       title,

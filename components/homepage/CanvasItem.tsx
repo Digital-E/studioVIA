@@ -20,30 +20,40 @@ export default function CanvasItem({ item, locale }: { item: CanvasItemType; loc
   if (item._type === 'canvasMedia') {
     if (item.mediaType === 'video' && item.videoUrl) {
       return (
-        <video
-          src={item.videoUrl}
-          autoPlay
-          loop
-          muted
-          playsInline
-          style={{ width: w, height: Math.round(w * 0.75) }}
-          className="object-cover max-w-none"
-        />
+        <div className="group">
+          <video
+            src={item.videoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: w, height: Math.round(w * 0.75) }}
+            className="object-cover max-w-none"
+          />
+          {item.credit && (
+            <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+          )}
+        </div>
       )
     }
 
     if (item.image) {
       const imageUrl = urlFor(item.image).width(w * 2).url()
       return (
-        <Image
-          src={imageUrl}
-          alt=""
-          width={w}
-          height={Math.round(w * 0.75)}
-          className="object-cover max-w-none"
-          draggable={false}
-          priority
-        />
+        <div className="group">
+          <Image
+            src={imageUrl}
+            alt=""
+            width={w}
+            height={Math.round(w * 0.75)}
+            className="object-cover max-w-none"
+            draggable={false}
+            priority
+          />
+          {item.credit && (
+            <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+          )}
+        </div>
       )
     }
   }

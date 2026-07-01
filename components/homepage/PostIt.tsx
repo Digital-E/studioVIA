@@ -13,7 +13,7 @@ interface PostItProps {
 const titleComponents: PortableTextComponents = {
   block: {
     normal: ({ children }) => (
-      <p className="font-build text-sm leading-snug font-medium">{children}</p>
+      <p className="font-build text-3xl leading-none">{children}</p>
     ),
   },
 }
@@ -28,8 +28,8 @@ export default function PostIt({ item, locale }: PostItProps) {
         {/* Front: yellow post-it */}
         <div className="postit-front flex flex-col p-5" style={{ backgroundColor: 'var(--color-postit)' }}>
           <div className="flex justify-between items-start mb-auto">
-            <span className="font-build text-xs font-medium">{item.category}</span>
-            <span className="font-build text-xs text-via-gray">{item.date}</span>
+            <span className="font-build text-3xl font-medium">{item.category}</span>
+            <span className="font-build text-3xl">{item.date}</span>
           </div>
           <div className="mt-8">
             {titleBlocks && (

@@ -8,6 +8,7 @@ const canvasMediaItem = defineArrayMember({
     defineField({ name: 'mediaType', type: 'string', title: 'Type', options: { list: ['image', 'video'], layout: 'radio' }, initialValue: 'image' }),
     defineField({ name: 'image', type: 'image', title: 'Image', options: { hotspot: true } }),
     defineField({ name: 'videoUrl', type: 'url', title: 'Video URL (MP4)' }),
+    defineField({ name: 'credit', type: 'string', title: 'Credit' }),
   ],
   preview: { select: { media: 'image', title: 'mediaType' } },
 })
@@ -43,8 +44,8 @@ export const homepageSchema = defineType({
       type: 'object',
       title: 'Center text',
       fields: [
-        defineField({ name: 'de', type: 'string', title: 'German', initialValue: 'Architekturbüro\nZürich' }),
-        defineField({ name: 'en', type: 'string', title: 'English', initialValue: 'Architecture Practice\nZürich' }),
+        defineField({ name: 'de', type: 'text', rows: 3, title: 'German', initialValue: 'Architekturbüro\nZürich' }),
+        defineField({ name: 'en', type: 'text', rows: 3, title: 'English', initialValue: 'Architecture Practice\nZürich' }),
       ],
     }),
     defineField({

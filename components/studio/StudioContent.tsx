@@ -19,7 +19,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
       <div className="grid gap-8" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
         {/* Left column: Projekt + Team */}
         <div>
-          <h2 className="font-build text-sm font-medium mb-6">
+          <h2 className="font-build text-2xl mb-6">
             {locale === 'de' ? 'Projekt' : 'Project'}
           </h2>
           <div className="prose-via">
@@ -30,7 +30,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
 
           {data.teamMembers && data.teamMembers.length > 0 && (
             <div className="mt-12">
-              <h2 className="font-build text-sm font-medium mb-6">Team</h2>
+              <h2 className="font-build text-2xl mb-6">Team</h2>
               <div className="space-y-8">
                 {data.teamMembers.map((member) => {
                   const bio = locale === 'de' ? member.bio?.de : (member.bio?.en ?? member.bio?.de)
@@ -53,7 +53,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
 
         {/* Middle column: Studio VIA contact + legal */}
         <div>
-          <h2 className="font-build text-sm font-medium mb-6">Studio VIA</h2>
+          <h2 className="font-build text-2xl mb-6">Studio VIA</h2>
           {contact && (
             <div className="font-build text-sm space-y-1 mb-8">
               {contact.address && <p className="whitespace-pre-line">{contact.address}</p>}
