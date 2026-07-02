@@ -15,7 +15,7 @@ export default async function StudioPage({
   const data: StudioPageData = (await getClient(preview).fetch(studioPageQuery)) ?? {}
 
   return (
-    <main className="min-h-screen">
+    <main className="w-screen h-screen overflow-hidden bg-white">
       <Navigation locale={locale} activePage="studio" />
       <StudioContent data={data} locale={locale} />
     </main>

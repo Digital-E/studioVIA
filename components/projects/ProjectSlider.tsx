@@ -70,8 +70,49 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
   )
 }
 
+const CAPTION_OFFSET = 26 // gap-2 (8px) + text-lg leading-none (~18px)
+
 function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const caption = locale === 'de' ? slide.caption?.de : (slide.caption?.en ?? slide.caption?.de)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const imageARRef = useRef<number | null>(null)
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
+
+  const [ready, setReady] = useState(false)
+  const rafRef = useRef<number | null>(null)
+
+  const computeSize = useCallback(() => {
+    const el = wrapperRef.current
+    const ar = imageARRef.current
+    if (!el || !ar) return
+    const availW = el.clientWidth
+    const availH = el.clientHeight - (caption ? CAPTION_OFFSET : 0)
+    const newSize = availW / availH > ar
+      ? { w: Math.round(availH * ar), h: availH }
+      : { w: availW, h: Math.round(availW / ar) }
+    setImgSize(newSize)
+    // Let the size paint first, then fade in
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => setReady(true))
+  }, [caption])
+
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    const ro = new ResizeObserver(computeSize)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [computeSize])
+
+  const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    // naturalWidth/naturalHeight reflect the CDN-served image after crop is applied
+    imageARRef.current = img.naturalWidth / img.naturalHeight
+    computeSize()
+  }, [computeSize])
 
   if (slide.slideType === 'video' && slide.videoUrl) {
     return (
@@ -91,19 +132,24 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const imageUrl = urlFor(slide.image).width(1600).url()
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-white px-16">
-      <div className="flex flex-col items-center gap-2" style={{ maxHeight: '100%' }}>
+    <div className="w-full h-full flex flex-col bg-white px-40">
+      <div ref={wrapperRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
         <Image
           src={imageUrl}
           alt=""
-          width={1200}
-          height={800}
-          className="min-h-0 max-w-full w-auto h-auto"
-          style={{ maxHeight: caption ? 'calc(100% - 2rem)' : '100%' }}
+          width={imgSize?.w ?? 1600}
+          height={imgSize?.h ?? 900}
+          className={`flex-shrink-0 transition-opacity duration-300 ${ready ? 'opacity-100' : 'opacity-0'}`}
+          style={!imgSize ? { maxWidth: '100%', height: 'auto' } : undefined}
+          onLoad={handleLoad}
           priority
           draggable={false}
         />
-        {caption && <p className="font-build text-lg leading-none text-via-gray flex-shrink-0">{caption}</p>}
+        {caption && (
+          <p className="font-build text-lg leading-none text-via-gray text-center flex-shrink-0">
+            {caption}
+          </p>
+        )}
       </div>
     </div>
   )

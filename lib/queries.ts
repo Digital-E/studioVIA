@@ -51,15 +51,8 @@ export const projectQuery = `
 
 export const studioPageQuery = `
   *[_type == "studioPage"][0] {
-    projektText,
-    teamMembers[] {
-      _key,
-      name,
-      degree,
-      bio,
-    },
-    contactInfo,
-    legalText,
+    leftColumn,
+    rightColumn,
     photo { asset->, ... }
   }
 `

@@ -119,3 +119,19 @@ body {
   text-indent: 2em;
   margin-top: 0;
 }
+
+/* Studio page overrides */
+.studio-page .prose-via p {
+  margin-bottom: 3.5rem;
+  font-size: 1.125rem;
+}
+
+.studio-page .prose-via h1,
+.studio-page .prose-via h2,
+.studio-page .prose-via h3,
+.studio-page .prose-via h4 {
+  font-family: 'ES-Build-Medium', sans-serif;
+  font-size: 1.875rem;
+  line-height: 1.15;
+  margin-bottom: 3.5rem;
+}

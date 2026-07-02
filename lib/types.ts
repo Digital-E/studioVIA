@@ -6,9 +6,14 @@ export interface LocalizedString {
 }
 
 export interface SanityImageRef {
-  asset: { _ref?: string; url?: string; _id?: string }
+  asset: {
+    _ref?: string
+    url?: string
+    _id?: string
+    metadata?: { dimensions?: { width: number; height: number; aspectRatio: number } }
+  }
   hotspot?: { x: number; y: number }
-  crop?: object
+  crop?: { top?: number; bottom?: number; left?: number; right?: number }
 }
 
 export interface CanvasItem {
@@ -60,27 +65,8 @@ export interface Project {
   slides?: Slide[]
 }
 
-export interface TeamMember {
-  _key: string
-  name: string
-  degree?: string
-  bio?: LocalizedString
-}
-
-export interface ContactInfo {
-  address?: string
-  email?: string
-  phone?: string
-  foundingYear?: string
-  legalForm?: string
-  uid?: string
-  mwst?: string
-}
-
 export interface StudioPageData {
-  projektText?: { de?: unknown[]; en?: unknown[] }
-  teamMembers?: TeamMember[]
-  contactInfo?: ContactInfo
-  legalText?: { de?: unknown[]; en?: unknown[] }
+  leftColumn?: { de?: unknown[]; en?: unknown[] }
+  rightColumn?: { de?: unknown[]; en?: unknown[] }
   photo?: SanityImageRef
 }
