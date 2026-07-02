@@ -32,10 +32,9 @@ const textSlide = defineArrayMember({
         type: 'object',
         name: 'credit',
         fields: [
-          defineField({ name: 'label', type: 'string', title: 'Label (e.g. Bauherrschaft)' }),
-          defineField({ name: 'value', type: 'string', title: 'Value' }),
+          defineField({ name: 'text', type: 'array', title: 'Text', of: [{ type: 'block' }] }),
         ],
-        preview: { select: { title: 'label', subtitle: 'value' } },
+        preview: { prepare: () => ({ title: 'Credit' }) },
       })],
     }),
     defineField({
@@ -66,7 +65,7 @@ export const projectSchema = defineType({
       ],
     }),
     defineField({ name: 'slug', type: 'slug', title: 'Slug', options: { source: 'title.de' } }),
-    defineField({ name: 'year', type: 'number', title: 'Year' }),
+    defineField({ name: 'year', type: 'date', title: 'Year', options: { dateFormat: 'YYYY' } }),
     defineField({
       name: 'location',
       type: 'object',
@@ -86,8 +85,6 @@ export const projectSchema = defineType({
       ],
     }),
     defineField({ name: 'thumbnail', type: 'image', title: 'List thumbnail', options: { hotspot: true } }),
-    defineField({ name: 'isGrayed', type: 'boolean', title: 'Grayed out in list', initialValue: false }),
-    defineField({ name: 'orderRank', type: 'number', title: 'Order (within year)', initialValue: 0 }),
     defineField({
       name: 'slides',
       type: 'array',
@@ -100,6 +97,6 @@ export const projectSchema = defineType({
     prepare: ({ title, subtitle, media }) => ({ title, subtitle: String(subtitle), media }),
   },
   orderings: [
-    { title: 'Year desc', name: 'yearDesc', by: [{ field: 'year', direction: 'desc' }, { field: 'orderRank', direction: 'asc' }] },
+    { title: 'Year desc', name: 'yearDesc', by: [{ field: 'year', direction: 'desc' }] },
   ],
 })

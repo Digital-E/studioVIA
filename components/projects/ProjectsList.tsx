@@ -1,6 +1,7 @@
 'use client'
-import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { urlFor } from '@/lib/sanity'
 import type { Project } from '@/lib/types'
 
@@ -10,25 +11,46 @@ interface ProjectsListProps {
 }
 
 export default function ProjectsList({ projects, locale }: ProjectsListProps) {
+  const router = useRouter()
+  const [showGradient, setShowGradient] = useState(false)
+
+  useEffect(() => {
+    const check = () => {
+      const overflows = document.body.scrollHeight > window.innerHeight
+      const atBottom = window.scrollY + window.innerHeight >= document.body.scrollHeight - 2
+      setShowGradient(overflows && !atBottom)
+    }
+    check()
+    window.addEventListener('scroll', check)
+    window.addEventListener('resize', check)
+    return () => {
+      window.removeEventListener('scroll', check)
+      window.removeEventListener('resize', check)
+    }
+  }, [])
+
   const yearLabel = locale === 'de' ? 'JAHR' : 'YEAR'
   const nameLabel = locale === 'de' ? 'PROJEKT NAME' : 'PROJECT NAME'
   const locationLabel = locale === 'de' ? 'ORT' : 'LOCATION'
 
-  let lastYear: number | null = null
+  let lastYear: string | null = null
 
   return (
-    <div className="pt-20 pb-24 px-5">
-      {/* Header row */}
-      <div className="grid items-center border-b border-via-light-gray pb-2 mb-0" style={{ gridTemplateColumns: '80px 1fr 180px 80px' }}>
-        <span className="font-build text-xs tracking-widest text-via-gray">{yearLabel}</span>
-        <span className="font-build text-xs tracking-widest text-via-gray">{nameLabel}</span>
-        <span className="font-build text-xs tracking-widest text-via-gray">{locationLabel}</span>
-        <span />
+    <>
+    <div className="pt-16 pb-24 pl-5">
+      {/* Header */}
+      <div className="grid grid-cols-12 border-b border-black pb-1">
+        <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearLabel}</div>
+        <div className="col-span-6 font-build text-3xl leading-none text-via-gray">{nameLabel}</div>
+        <div className="col-span-3 font-build text-3xl leading-none text-via-gray">{locationLabel}</div>
+        <div className="col-span-1" />
       </div>
 
+      {/* Rows */}
       {projects.map((project) => {
-        const isNewYear = project.year !== lastYear
-        if (isNewYear) lastYear = project.year
+        const yearLabel = project.year ? String(project.year).slice(0, 4) : ''
+        const isNewYear = yearLabel !== lastYear
+        if (isNewYear) lastYear = yearLabel
 
         const title = locale === 'de' ? project.title?.de : (project.title?.en ?? project.title?.de)
         const location = locale === 'de' ? project.location?.de : (project.location?.en ?? project.location?.de)
@@ -38,41 +60,44 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
           ? urlFor(project.thumbnail).width(160).height(110).fit('crop').url()
           : null
 
-        const rowContent = (
+        const clickable = !!project.slug?.current
+
+        return (
           <div
-            className={`project-row grid items-center border-b py-3 ${project.isGrayed ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
-            style={{ gridTemplateColumns: '80px 1fr 180px 80px' }}
+            key={project._id}
+            className={`group grid grid-cols-12 border-b border-black items-start ${clickable ? 'cursor-pointer' : ''}`}
+            onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
           >
-            <span className="font-build text-sm">{isNewYear ? project.year : ''}</span>
-            <div className="pr-4">
-              <p className={`font-build text-sm ${!project.isGrayed ? 'font-medium' : ''}`}>{title}</p>
-              {prize && <p className={`font-build text-sm ${project.isGrayed ? 'text-via-gray' : ''}`}>{prize}</p>}
+            <div className="col-span-2 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{isNewYear ? yearLabel : ''}</div>
+            <div className="col-span-6 font-build text-3xl leading-none pr-6 py-[0.9rem] group-hover:text-via-gray">
+              <span className="font-medium">{title}</span>
+              {prize && <><br /><span>{prize}</span></>}
             </div>
-            <span className={`font-build text-sm ${project.isGrayed ? 'text-via-gray' : ''}`}>{location}</span>
-            <div className="flex justify-end">
+            <div className="col-span-3 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{location}</div>
+            <div className="col-start-12 col-span-1 py-[2px]" style={{ position: 'relative', width: '125%', left: '-25%' }}>
               {thumbnailUrl && (
-                <Image
-                  src={thumbnailUrl}
-                  alt={title ?? ''}
-                  width={80}
-                  height={55}
-                  className="object-cover"
-                />
+                <div className="relative aspect-[1.5/1]">
+                  <Image
+                    src={thumbnailUrl}
+                    alt={title ?? ''}
+                    fill
+                    className="object-cover"
+                    sizes="10vw"
+                  />
+                </div>
               )}
             </div>
           </div>
         )
-
-        if (project.isGrayed || !project.slug?.current) {
-          return <div key={project._id}>{rowContent}</div>
-        }
-
-        return (
-          <Link key={project._id} href={`/${locale}/projects/${project.slug.current}`}>
-            {rowContent}
-          </Link>
-        )
       })}
     </div>
+
+    {showGradient && (
+      <div
+        className="fixed bottom-0 left-0 right-0 h-32 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, transparent, white)' }}
+      />
+    )}
+    </>
   )
 }

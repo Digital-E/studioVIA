@@ -4,15 +4,17 @@
       {
         "fields": [
           {
+            "rows": 3,
             "initialValue": "Architekturbüro\nZürich",
             "name": "de",
-            "type": "string",
+            "type": "text",
             "title": "German"
           },
           {
+            "rows": 3,
             "initialValue": "Architecture Practice\nZürich",
             "name": "en",
-            "type": "string",
+            "type": "text",
             "title": "English"
           }
         ],
@@ -69,6 +71,10 @@
                 "name": "videoUrl",
                 "type": "url",
                 "title": "Video URL (MP4)"
+              },
+              {
+                "name": "credit",
+                "type": "string"
               }
             ],
             "type": "object",

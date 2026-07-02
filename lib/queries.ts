@@ -17,7 +17,7 @@ export const homepageQuery = `
 `
 
 export const projectsListQuery = `
-  *[_type == "project"] | order(year desc, orderRank asc) {
+  *[_type == "project"] | order(year desc) {
     _id,
     title,
     slug,
@@ -25,7 +25,6 @@ export const projectsListQuery = `
     location,
     prize,
     thumbnail { asset-> },
-    isGrayed,
   }
 `
 
@@ -44,7 +43,7 @@ export const projectQuery = `
       image { asset->, ...},
       videoUrl,
       caption,
-      credits[] { _key, label, value },
+      credits[] { _key, text },
       description,
     }
   }

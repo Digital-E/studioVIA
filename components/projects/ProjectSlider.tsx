@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Keyboard, Mousewheel, A11y } from 'swiper/modules'
 import type { Swiper as SwiperType } from 'swiper'
@@ -16,61 +16,50 @@ interface ProjectSliderProps {
 
 export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
   const swiperRef = useRef<SwiperType | null>(null)
-  const [hoveredSide, setHoveredSide] = useState<'left' | 'right' | null>(null)
-  const [isBeginning, setIsBeginning] = useState(true)
-  const [isEnd, setIsEnd] = useState(slides.length <= 1)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const [side, setSide] = useState<'left' | 'right' | null>(null)
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const mid = e.currentTarget.clientWidth / 2
-    setHoveredSide(e.clientX < mid ? 'left' : 'right')
+    setMousePos({ x: e.clientX, y: e.clientY })
+    setSide(e.clientX < e.currentTarget.clientWidth / 2 ? 'left' : 'right')
   }, [])
 
-  const handleMouseLeave = useCallback(() => setHoveredSide(null), [])
+  const handleMouseLeave = useCallback(() => setSide(null), [])
+
+  const handleClick = useCallback(() => {
+    if (side === 'left') swiperRef.current?.slidePrev()
+    else if (side === 'right') swiperRef.current?.slideNext()
+  }, [side])
 
   return (
     <div
-      className="fixed inset-0 pt-14"
+      className="fixed inset-0 cursor-none" style={{ paddingTop: '8rem', paddingBottom: '8rem' }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
     >
-      {/* Left arrow */}
-      {hoveredSide === 'left' && !isBeginning && (
-        <button
-          className="fixed left-5 top-1/2 z-30 -translate-y-1/2 font-build text-lg select-none"
-          onClick={() => swiperRef.current?.slidePrev()}
-          aria-label="Previous"
+      {/* Custom cursor */}
+      {side && (
+        <div
+          className="fixed pointer-events-none z-50 font-build text-3xl leading-none select-none"
+          style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }}
         >
-          {'<'}
-        </button>
-      )}
-
-      {/* Right arrow */}
-      {hoveredSide === 'right' && !isEnd && (
-        <button
-          className="fixed right-5 top-1/2 z-30 -translate-y-1/2 font-build text-lg select-none"
-          onClick={() => swiperRef.current?.slideNext()}
-          aria-label="Next"
-        >
-          {'>'}
-        </button>
+          {side === 'left' ? '<' : '>'}
+        </div>
       )}
 
       <Swiper
         modules={[Keyboard, Mousewheel, A11y]}
         keyboard={{ enabled: true }}
         mousewheel={{ forceToAxis: true, releaseOnEdges: true }}
-        grabCursor
+        loop
         onSwiper={(s) => { swiperRef.current = s }}
-        onSlideChange={(s) => {
-          setIsBeginning(s.isBeginning)
-          setIsEnd(s.isEnd)
-        }}
         className="w-full h-full"
       >
         {slides.map((slide) => (
           <SwiperSlide key={slide._key}>
             {slide._type === 'mediaSlide' ? (
-              <MediaSlide slide={slide} />
+              <MediaSlide slide={slide} locale={locale} />
             ) : (
               <TextSlide slide={slide} locale={locale} />
             )}
@@ -81,16 +70,18 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
   )
 }
 
-function MediaSlide({ slide }: { slide: Slide }) {
+function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
+  const caption = locale === 'de' ? slide.caption?.de : (slide.caption?.en ?? slide.caption?.de)
+
   if (slide.slideType === 'video' && slide.videoUrl) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-white">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-2">
         <video
           src={slide.videoUrl}
           controls
           className="max-w-full max-h-full object-contain"
-          style={{ maxHeight: 'calc(100vh - 56px)' }}
         />
+        {caption && <p className="font-build text-lg leading-none text-via-gray">{caption}</p>}
       </div>
     )
   }
@@ -101,44 +92,84 @@ function MediaSlide({ slide }: { slide: Slide }) {
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-white px-16">
-      <div className="relative" style={{ maxHeight: 'calc(100vh - 56px)', maxWidth: '100%' }}>
+      <div className="flex flex-col items-center gap-2" style={{ maxHeight: '100%' }}>
         <Image
           src={imageUrl}
           alt=""
           width={1200}
           height={800}
-          className="object-contain max-h-[calc(100vh-56px)] w-auto"
+          className="min-h-0 max-w-full w-auto h-auto"
+          style={{ maxHeight: caption ? 'calc(100% - 2rem)' : '100%' }}
           priority
           draggable={false}
         />
+        {caption && <p className="font-build text-lg leading-none text-via-gray flex-shrink-0">{caption}</p>}
       </div>
     </div>
   )
 }
 
+const creditComponents = {
+  block: {
+    normal: ({ children }: { children?: React.ReactNode }) => (
+      <p className="font-build" style={{ fontSize: '1.35rem', lineHeight: 1.15 }}>{children}</p>
+    ),
+  },
+}
+
 function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const description = locale === 'de' ? slide.description?.de : (slide.description?.en ?? slide.description?.de)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [showGradient, setShowGradient] = useState(false)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const check = () => {
+      setShowGradient(el.scrollHeight > el.clientHeight && el.scrollTop + el.clientHeight < el.scrollHeight - 2)
+    }
+    check()
+    el.addEventListener('scroll', check)
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', check); ro.disconnect() }
+  }, [])
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-white px-5">
-      <div className="grid gap-16 w-full max-w-5xl" style={{ gridTemplateColumns: '260px 1fr' }}>
-        {/* Credits column */}
-        <div className="space-y-0">
-          {slide.credits?.map((credit) => (
-            <div key={credit._key} className="border-b border-via-light-gray py-3">
-              <p className="font-build text-xs text-via-gray leading-tight">{credit.label}:</p>
-              <p className="font-build text-sm leading-tight mt-0.5">{credit.value}</p>
+    <div className="w-full h-full relative bg-white">
+      <div ref={scrollRef} className="w-full h-full overflow-y-auto px-5">
+        <div className="min-h-full flex items-center justify-center">
+          <div className="grid gap-4 w-full py-8" style={{ gridTemplateColumns: '300px 1fr', maxWidth: '900px' }}>
+            {/* Credits column */}
+            <div>
+              {slide.credits?.map((credit) => (
+                <div key={credit._key} className="border-b border-black pb-0 pt-6 first:pt-0">
+                  {credit.text && (
+                    <PortableText
+                      value={credit.text as Parameters<typeof PortableText>[0]['value']}
+                      components={creditComponents as any}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Description column */}
-        <div className="prose-via">
-          {description && (
-            <PortableText value={description as Parameters<typeof PortableText>[0]['value']} />
-          )}
+            {/* Description column */}
+            <div className="prose-via">
+              {description && (
+                <PortableText value={description as Parameters<typeof PortableText>[0]['value']} />
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {showGradient && (
+        <div
+          className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent, white)' }}
+        />
+      )}
     </div>
   )
 }

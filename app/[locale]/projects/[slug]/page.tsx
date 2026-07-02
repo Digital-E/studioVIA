@@ -9,7 +9,7 @@ import Navigation from '@/components/Navigation'
 export async function generateStaticParams() {
   const projects: Project[] = await getClient().fetch(projectsListQuery)
   return projects
-    .filter((p) => p.slug?.current && !p.isGrayed)
+    .filter((p) => p.slug?.current)
     .map((p) => ({ slug: p.slug.current }))
 }
 
@@ -30,7 +30,7 @@ export default async function ProjectPage({
     <main className="w-screen h-screen overflow-hidden bg-white">
       <Navigation locale={locale} activePage="projects" />
       <div className="fixed top-0 left-0 right-0 z-20 flex items-start justify-center pt-4 pointer-events-none">
-        <h1 className="text-lg font-build text-center max-w-md leading-tight">{title}</h1>
+        <h1 className="text-3xl font-build text-center max-w-md leading-none">{title}</h1>
       </div>
       <ProjectSlider slides={project.slides ?? []} locale={locale} />
     </main>

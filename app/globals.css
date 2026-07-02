@@ -108,10 +108,10 @@ body {
 
 /* Portable text */
 .prose-via p {
-  margin-bottom: 1em;
-  font-family: 'Minion-Pro', Georgia, serif;
-  font-size: 0.95rem;
-  line-height: 1.55;
+  margin-bottom: 0;
+  font-family: 'ES-Build-Medium', sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.15;
   text-align: justify;
 }
 

@@ -33,8 +33,7 @@ export interface HomepageData {
 
 export interface Credit {
   _key: string
-  label: string
-  value: string
+  text: unknown[]
 }
 
 export interface Slide {
@@ -54,11 +53,10 @@ export interface Project {
   _id: string
   title: LocalizedString
   slug: { current: string }
-  year: number
+  year: string
   location: LocalizedString
   prize?: LocalizedString
   thumbnail?: SanityImageRef
-  isGrayed?: boolean
   slides?: Slide[]
 }
 
