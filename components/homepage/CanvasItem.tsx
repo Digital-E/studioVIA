@@ -64,6 +64,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
             alt=""
             width={w}
             height={h}
+            style={{ width: w, height: h }}
             className="object-cover max-w-none"
             draggable={false}
             priority

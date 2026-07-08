@@ -4,13 +4,13 @@ export const homepageQuery = `
     canvasItems[] {
       _key,
       _type,
-      image { asset->, ...},
+      image { ..., asset-> },
       video { asset-> },
       credit,
       date,
       category,
       title,
-      backImage { asset->, ... },
+      backImage { ..., asset-> },
       linkedProject-> { slug }
     }
   }
@@ -39,7 +39,7 @@ export const projectQuery = `
     slides[] {
       _key,
       _type,
-      image { asset->, ...},
+      image { ..., asset-> },
       video { asset-> },
       caption,
       credits[] { _key, text },
@@ -52,6 +52,6 @@ export const studioPageQuery = `
   *[_type == "studioPage"][0] {
     leftColumn,
     rightColumn,
-    photo { asset->, ... }
+    photo { ..., asset-> }
   }
 `

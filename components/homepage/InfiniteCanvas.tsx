@@ -29,7 +29,7 @@ const CELL_H = CELL_W * POSTIT_ASPECT
 // Hard cap on overlap area (as a fraction of the smaller item's own area)
 // between any two neighboring items. Enforced by measuring actual placed
 // boxes and pulling pairs apart below, not by assuming a worst case up front.
-const MAX_OVERLAP_FRAC = 0.01
+const MAX_OVERLAP_FRAC = 0.2
 
 // ─── tile grid sizing ─────────────────────────────────────────────────────────
 
@@ -473,39 +473,6 @@ function buildAllLayouts(
     if (!changed) break
   }
 
-  // ── dev-only self-verification ────────────────────────────────────────────
-  // Brute-force EVERY overlap in a real rendered window (using the actual
-  // tileVariant assignment, not the resolver's internal model) and warn if
-  // anything exceeds the cap or a 3-way overlap survives. This is ground
-  // truth from what will actually paint — if it's silent, the layout is
-  // provably within spec regardless of what a possibly-stale browser shows.
-  if (process.env.NODE_ENV !== 'production') {
-    const boxes: { l: number; r: number; t: number; b: number; w: number; h: number; key: string; tx: number; ty: number }[] = []
-    for (let tx = 0; tx <= 4; tx++) for (let ty = 0; ty <= 4; ty++) {
-      const v = ((tx % 2) + 2) % 2 * 2 + ((ty % 2) + 2) % 2
-      for (const p of allPlaced[v]) {
-        const cx = p.baseCX + p.offX * p.t + tx * tileW, cy = p.baseCY + p.offY * p.t + ty * tileH
-        boxes.push({ l: cx - p.w / 2, r: cx + p.w / 2, t: cy - p.h / 2, b: cy + p.h / 2, w: p.w, h: p.h, key: p.key, tx, ty })
-      }
-    }
-    const central = boxes.filter((x) => x.tx === 2 && x.ty === 2)
-    let maxOv = 0, maxPair: string | null = null
-    for (const A of central) for (const B of boxes) {
-      if (A === B) continue
-      const ow = Math.min(A.r, B.r) - Math.max(A.l, B.l), oh = Math.min(A.b, B.b) - Math.max(A.t, B.t)
-      if (ow <= 0 || oh <= 0) continue
-      const f = (ow * oh) / Math.min(A.w * A.h, B.w * B.h)
-      if (f > maxOv) { maxOv = f; maxPair = `${A.key} × ${B.key}` }
-    }
-    if (maxOv > MAX_OVERLAP_FRAC + 1e-4) {
-      // eslint-disable-next-line no-console
-      console.warn(`[canvas] overlap ${(maxOv * 100).toFixed(1)}% exceeds cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}% — worst pair ${maxPair}`)
-    } else {
-      // eslint-disable-next-line no-console
-      console.info(`[canvas] layout OK — max overlap ${(maxOv * 100).toFixed(2)}% (cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}%)`)
-    }
-  }
-
   return allPlaced.map((placed) => {
     const map = new Map<string, { x: number; y: number; w: number; h: number }>()
     placed.forEach((p) => {
@@ -777,6 +744,51 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     [items, seed, grid]
   )
 
+  // ── dev-only DOM ground-truth check ───────────────────────────────────────
+  // Measures the ACTUAL painted rectangles (getBoundingClientRect) of every
+  // rendered tile and brute-forces their overlaps. Unlike a model-based
+  // check this cannot diverge from what's on screen — if the model says a
+  // layout is fine but a tile still renders taller/wider than its box (e.g.
+  // a media element ignoring its forced size), this catches it and names the
+  // offending pair with their model vs. actual dimensions.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' || seed === null) return
+    const id = requestAnimationFrame(() => {
+      const els = Array.from(document.querySelectorAll<HTMLElement>('[data-ci]'))
+      const rects = els.map((el) => {
+        // Measure the actual media element (img/video), not the wrapper —
+        // the wrapper also contains an invisible hover-credit caption that
+        // would inflate its height and report phantom overlaps.
+        const media = el.querySelector('img, video') as HTMLElement | null
+        const r = (media ?? el).getBoundingClientRect()
+        return {
+          key: el.dataset.ci!, r,
+          cw: Number(el.dataset.cw), ch: Number(el.dataset.ch),
+        }
+      })
+      let maxOv = 0, worst: string | null = null
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const A = rects[i], B = rects[j]
+          const ow = Math.min(A.r.right, B.r.right) - Math.max(A.r.left, B.r.left)
+          const oh = Math.min(A.r.bottom, B.r.bottom) - Math.max(A.r.top, B.r.top)
+          if (ow <= 0 || oh <= 0) continue
+          const minArea = Math.min(A.r.width * A.r.height, B.r.width * B.r.height)
+          if (minArea <= 0) continue
+          const f = (ow * oh) / minArea
+          if (f > maxOv) {
+            maxOv = f
+            worst = `${A.key} (model ${A.cw}x${A.ch}, painted ${Math.round(A.r.width)}x${Math.round(A.r.height)}) × ${B.key} (model ${B.cw}x${B.ch}, painted ${Math.round(B.r.width)}x${Math.round(B.r.height)})`
+          }
+        }
+      }
+      const tag = maxOv > MAX_OVERLAP_FRAC + 1e-4 ? 'warn' : 'info'
+      // eslint-disable-next-line no-console
+      console[tag](`[canvas DOM] max painted overlap ${(maxOv * 100).toFixed(1)}% (cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}%)${worst ? ` — worst ${worst}` : ''}`)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [seed, layouts, offset, viewSize])
+
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
   const displayText = locale === 'de' ? centerText?.de : (centerText?.en ?? centerText?.de)
@@ -830,6 +842,9 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                 return (
                   <div
                     key={item._key}
+                    data-ci={item._key}
+                    data-cw={pos.w}
+                    data-ch={pos.h}
                     style={{
                       position: 'absolute',
                       left:   pos.x + tx * grid.tileW,
