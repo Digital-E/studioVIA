@@ -12,8 +12,8 @@ const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-r
 const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a fixed UI card, not a photo)
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
 const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
-const STAGGER_FRAC    = 0.03  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
-const JITTER_MULT     = 0.8   // fraction of each item's own per-cell slack used for jitter
+const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
+const JITTER_MULT     = 0.95  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe)
 
 // Photo size varies per item — mostly medium/large, occasionally a small
 // accent image — instead of every item rendering at the same fixed size.
@@ -149,17 +149,39 @@ function placeVariant(
   const staggerX = CELL_W * STAGGER_FRAC
   const staggerY = CELL_H * STAGGER_FRAC
 
-  const shuffled = [...items].sort(
-    (a, b) => rand(seed + a._key + ':ord:v' + variant, 0) - rand(seed + b._key + ':ord:v' + variant, 0)
-  )
+  // Postits sort first (ties broken by the usual random order) so they claim
+  // whichever cells are prioritized below — normally that's a no-op, but
+  // combined with the interior-cell priority next, it lets a postit (of
+  // which there's typically only one) claim an interior cell ahead of
+  // everything else.
+  const shuffled = [...items].sort((a, b) => {
+    const pa = a._type === 'canvasPostit' ? 0 : 1
+    const pb = b._type === 'canvasPostit' ? 0 : 1
+    if (pa !== pb) return pa - pb
+    return rand(seed + a._key + ':ord:v' + variant, 0) - rand(seed + b._key + ':ord:v' + variant, 0)
+  })
 
   // Shuffle which grid cell each item lands in (rather than filling cells in
   // sequential order) so that when items don't evenly fill the grid, the
   // leftover empty cells are scattered across the tile instead of clumping
   // together at the tail — a clump of empty cells reads as one large gap.
-  const cellIndices = Array.from({ length: rows * cols }, (_, i) => i).sort(
-    (a, b) => rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
-  )
+  //
+  // Interior cells (not touching this tile's own edge) sort first. A tile
+  // only ever repeats a single rare item (e.g. one postit) once per
+  // instance, so if that item lands near the tile's edge, an adjacent tile's
+  // independently-placed copy of the very same item can end up right next
+  // to it on screen — reading as an accidental duplicate. Keeping it away
+  // from every edge means no neighboring tile's copy can ever land close
+  // enough to look that way.
+  const isInterior = (cellIndex: number) => {
+    const col = cellIndex % cols, row = Math.floor(cellIndex / cols)
+    return col > 0 && col < cols - 1 && row > 0 && row < rows - 1
+  }
+  const cellIndices = Array.from({ length: rows * cols }, (_, i) => i).sort((a, b) => {
+    const ia = isInterior(a) ? 0 : 1, ib = isInterior(b) ? 0 : 1
+    if (ia !== ib) return ia - ib
+    return rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
+  })
 
   // ── pass 1: assign each item's cell, size, and base (unjittered) center ────
   const placed: Placed[] = []
