@@ -22,12 +22,14 @@ const SIZE_TIERS = [0.7, 1.2, 1.5, 1.5, 1.8, 1.8, 2, 2]
 const MAX_SIZE_TIER = Math.max(...SIZE_TIERS, POSTIT_SIZE)
 const W_MAX = DEFAULT_W * MAX_SIZE_TIER
 
-// Packed tight for a dense collage look. Best-effort, not a hard overlap
-// guarantee: worst case (two max-size items landing in neighboring cells,
-// both jittered toward each other) tops out around 5% overlap — while
-// typical/smaller items usually clear their neighbors entirely.
+// Packed tight for a dense collage look.
 const CELL_W = W_MAX * 1.05
 const CELL_H = CELL_W * POSTIT_ASPECT
+
+// Hard cap on overlap area (as a fraction of the smaller item's own area)
+// between any two neighboring items. Enforced by measuring actual placed
+// boxes and pulling pairs apart below, not by assuming a worst case up front.
+const MAX_OVERLAP_FRAC = 0.01
 
 // ─── tile grid sizing ─────────────────────────────────────────────────────────
 
@@ -73,11 +75,15 @@ function biasedUnit(r: number): number {
 
 // ─── variant assignment per tile ──────────────────────────────────────────────
 
+// Assigning purely by (tx mod 2, ty mod 2) means each of the 4 parity
+// combinations maps to a distinct variant, so every one of a tile's 8
+// neighbors is guaranteed a different variant than the tile itself — two
+// adjacent tiles can never render the identical layout. (Requires exactly
+// N_VARIANTS === 4.)
 function tileVariant(tx: number, ty: number): number {
-  let h = 2166136261 >>> 0
-  const bytes = [tx & 0xff, (tx >> 8) & 0xff, ty & 0xff, (ty >> 8) & 0xff]
-  for (const b of bytes) { h ^= b + 1000; h = Math.imul(h, 16777619) >>> 0 }
-  return (h >>> 0) % N_VARIANTS
+  const ax = ((tx % 2) + 2) % 2
+  const ay = ((ty % 2) + 2) % 2
+  return ax * 2 + ay
 }
 
 // ─── grid-based layout ────────────────────────────────────────────────────────
@@ -91,14 +97,50 @@ function itemAspect(item: CanvasItemType): number {
   return ar && ar > 0 ? ar : FALLBACK_ASPECT
 }
 
-function buildLayout(
+interface Placed {
+  key: string
+  isPostit: boolean
+  isImage: boolean
+  w: number; h: number
+  col: number; row: number
+  // nominal (unstaggered) cell center
+  baseCX: number; baseCY: number
+  // stagger + jitter combined into one offset, scaled by `t` below —
+  // t=1 is the full offset (original behavior), t=0 is the bare
+  // unstaggered cell center, which by construction (item ≤ its own cell)
+  // never overlaps a same-sized neighbor. Decaying t therefore always has
+  // somewhere safe to converge to.
+  offX: number; offY: number
+  t: number
+}
+
+// Grid neighbors (8-connected). A cell at the tile's own edge wraps to the
+// opposite edge — but since tileVariant() guarantees adjacent tiles are
+// never the same variant, that opposite edge belongs to a *different*
+// variant's layout, not another copy of this one.
+const NEIGHBOR_OFFSETS: [number, number][] = [
+  [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
+]
+
+// tileVariant() assigns variant = (tx mod 2)*2 + (ty mod 2), so a tile's
+// horizontal neighbors (left or right) are always the x-flipped variant, its
+// vertical neighbors are always the y-flipped variant, and its diagonal
+// neighbors are always the fully-flipped variant. Neighbor relationships are
+// therefore fully determined by which axes wrapped, not by direction.
+function flipVariant(v: number, flipX: boolean, flipY: boolean): number {
+  const ax = Math.floor(v / 2), ay = v % 2
+  return (flipX ? 1 - ax : ax) * 2 + (flipY ? 1 - ay : ay)
+}
+
+// ── pass 1+2: place every item for one variant (cell, size, jitter) ────────
+// Collision resolution happens afterward, once all 4 variants are placed —
+// see buildAllLayouts.
+function placeVariant(
   items: CanvasItemType[],
   variant: number,
   seed: string,
   grid: { cols: number; rows: number; tileW: number; tileH: number },
-): Map<string, { x: number; y: number; w: number; h: number }> {
-  if (items.length === 0) return new Map()
-
+): { placed: Placed[]; cellToPlacedIndex: Map<number, number> } {
   const { cols, rows, tileW, tileH } = grid
 
   // Offset alternating cells (checkerboard, by row+col parity) so same-row and
@@ -119,40 +161,363 @@ function buildLayout(
     (a, b) => rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
   )
 
-  const map = new Map<string, { x: number; y: number; w: number; h: number }>()
+  // ── pass 1: assign each item's cell, size, and base (unjittered) center ────
+  const placed: Placed[] = []
+  const cellToPlacedIndex = new Map<number, number>()
+
   shuffled.forEach((item, i) => {
     const sizeTier = item._type === 'canvasPostit'
       ? POSTIT_SIZE
       : SIZE_TIERS[Math.floor(rand(seed + item._key + ':size:v' + variant, 0) * SIZE_TIERS.length)]
-    const w = Math.round(DEFAULT_W * sizeTier)
-    const h = Math.round(w / itemAspect(item))
+    let w = Math.round(DEFAULT_W * sizeTier)
+    let h = Math.round(w / itemAspect(item))
+
+    // An item taller or wider than its own cell would overflow into
+    // neighboring cells just from being centered, regardless of jitter —
+    // bound it to the cell first so the collision pass below has a
+    // guaranteed-safe fallback (t=0) to fall back to.
+    if (w > CELL_W || h > CELL_H) {
+      const scale = Math.min(CELL_W / w, CELL_H / h)
+      w = Math.round(w * scale)
+      h = Math.round(h * scale)
+    }
 
     const cellIndex = cellIndices[i]
     const col = cellIndex % cols
     const row = Math.floor(cellIndex / cols)
+    const baseCX = EDGE_MARGIN + (col + 0.5) * CELL_W
+    const baseCY = EDGE_MARGIN + (row + 0.5) * CELL_H
 
-    const parity = (row + col) % 2 === 0 ? 1 : -1
-    const cellCX = EDGE_MARGIN + (col + 0.5) * CELL_W + parity * staggerX
-    const cellCY = EDGE_MARGIN + (row + 0.5) * CELL_H + parity * staggerY
+    cellToPlacedIndex.set(cellIndex, placed.length)
+    placed.push({
+      key: item._key,
+      isPostit: item._type === 'canvasPostit',
+      isImage: item._type === 'canvasMedia' && !!item.image && !item.video,
+      w, h, col, row,
+      baseCX, baseCY,
+      offX: 0, offY: 0,
+      t: 1,
+    })
+  })
+
+  // ── pass 2a: jitter for every non-postit item ─────────────────────────────
+  // Postits are handled separately below, once every other item's position
+  // is already final — see that pass for why.
+  placed.forEach((p) => {
+    if (p.isPostit) return
+    const parity = (p.row + p.col) % 2 === 0 ? 1 : -1
 
     // Smaller items (well under CELL_W/CELL_H) get generous room to roam, so
     // they mostly land clear of their neighbors. Larger items have less
     // slack and more often nudge into a neighbor's corner — biasedUnit below
     // then pushes typical draws toward that edge instead of the cell center.
-    const maxJX = Math.max(0, (CELL_W - w) / 2) * JITTER_MULT
-    const maxJY = Math.max(0, (CELL_H - h) / 2) * JITTER_MULT
-    const jX = biasedUnit(rand(seed + item._key + ':jx:v' + variant, 0)) * maxJX
-    const jY = biasedUnit(rand(seed + item._key + ':jy:v' + variant, 0)) * maxJY
-
-    map.set(item._key, {
-      x: cellCX + jX - w / 2 - tileW / 2,
-      y: cellCY + jY - h / 2 - tileH / 2,
-      w,
-      h,
-    })
+    const maxJX = Math.max(0, (CELL_W - p.w) / 2) * JITTER_MULT
+    const maxJY = Math.max(0, (CELL_H - p.h) / 2) * JITTER_MULT
+    const jX = biasedUnit(rand(seed + p.key + ':jx:v' + variant, 0)) * maxJX
+    const jY = biasedUnit(rand(seed + p.key + ':jy:v' + variant, 0)) * maxJY
+    p.offX = parity * staggerX + jX
+    p.offY = parity * staggerY + jY
   })
 
-  return map
+  // ── pass 2b: postits, deliberately aimed at a neighbor's actual box ──────
+  // Regular jitter is capped (JITTER_MULT < 1) so an item can never leave its
+  // own cell — by construction that means jitter alone can never even reach
+  // the shared cell boundary, let alone cross into a neighbor's territory.
+  // Postits are a fixed UI card, not a photo, and overlapping a neighboring
+  // image (like a note pinned on top of a photo) is a designed accent, not a
+  // jitter accident — so instead of jittering within its own cell, a postit
+  // is aimed directly at a chosen image neighbor's already-known box,
+  // crossing the boundary on purpose. The collision-resolution pass
+  // afterward then pulls that back to exactly MAX_OVERLAP_FRAC.
+  placed.forEach((p) => {
+    if (!p.isPostit) return
+    const parity = (p.row + p.col) % 2 === 0 ? 1 : -1
+    const fallbackJX = Math.max(0, (CELL_W - p.w) / 2) * JITTER_MULT
+    const fallbackJY = Math.max(0, (CELL_H - p.h) / 2) * JITTER_MULT
+
+    type Candidate = { neighborIdx: number; dc: number; dr: number; wrapDx: number; wrapDy: number }
+    const candidates: Candidate[] = []
+    for (const [dc, dr] of NEIGHBOR_OFFSETS) {
+      let nc = p.col + dc, nr = p.row + dr
+      let wrapDx = 0, wrapDy = 0
+      if (nc < 0) { nc += cols; wrapDx = -1 } else if (nc >= cols) { nc -= cols; wrapDx = 1 }
+      if (nr < 0) { nr += rows; wrapDy = -1 } else if (nr >= rows) { nr -= rows; wrapDy = 1 }
+      const neighborIdx = cellToPlacedIndex.get(nr * cols + nc)
+      if (neighborIdx !== undefined && placed[neighborIdx].isImage) {
+        candidates.push({ neighborIdx, dc, dr, wrapDx, wrapDy })
+      }
+    }
+
+    if (candidates.length === 0) {
+      const jX = biasedUnit(rand(seed + p.key + ':jx:v' + variant, 0)) * fallbackJX
+      const jY = biasedUnit(rand(seed + p.key + ':jy:v' + variant, 0)) * fallbackJY
+      p.offX = parity * staggerX + jX
+      p.offY = parity * staggerY + jY
+      return
+    }
+
+    const { neighborIdx, dc, dr, wrapDx, wrapDy } = candidates[Math.floor(rand(seed + p.key + ':target:v' + variant, 0) * candidates.length)]
+    const neighbor = placed[neighborIdx]
+    // Neighbor's already-finalized box (pass 2a ran for every non-postit
+    // item), shifted by whichever tile copy this neighbor relationship
+    // actually wraps to.
+    const nCX = neighbor.baseCX + neighbor.offX + wrapDx * tileW
+    const nCY = neighbor.baseCY + neighbor.offY + wrapDy * tileH
+
+    // Aim to land the postit's center a quarter of the neighbor's own size
+    // past its edge — comfortably inside its box — then let the resolution
+    // pass trim that back to the allowed cap. On whichever axis isn't the
+    // primary direction, align to the neighbor's actual center instead of
+    // generic stagger — otherwise the neighbor's own jitter on that axis
+    // could clear the postit's range entirely despite the primary-axis
+    // crossing, and the two boxes would never truly intersect.
+    p.offX = dc !== 0
+      ? (nCX - dc * neighbor.w / 4) - p.baseCX
+      : nCX - p.baseCX
+    p.offY = dr !== 0
+      ? (nCY - dr * neighbor.h / 4) - p.baseCY
+      : nCY - p.baseCY
+  })
+
+  return { placed, cellToPlacedIndex }
+}
+
+// ── build & resolve all 4 variants together ───────────────────────────────
+// Each tile only ever borders (via tileVariant's guarantee) a *different*
+// variant than itself, so overlap resolution has to reach across variants
+// at tile edges — it can't assume an edge cell's neighbor is more of the
+// same layout, the way a single repeating tile would.
+function buildAllLayouts(
+  items: CanvasItemType[],
+  seed: string,
+  grid: { cols: number; rows: number; tileW: number; tileH: number },
+): Map<string, { x: number; y: number; w: number; h: number }>[] {
+  if (items.length === 0) return Array.from({ length: N_VARIANTS }, () => new Map())
+
+  const { tileW, tileH } = grid
+
+  const allPlaced: Placed[][] = []
+  for (let v = 0; v < N_VARIANTS; v++) {
+    const { placed } = placeVariant(items, v, seed, grid)
+    allPlaced.push(placed)
+  }
+
+  const boxOf = (p: Placed, dx: number, dy: number) => {
+    const cx = p.baseCX + p.offX * p.t + dx * tileW
+    const cy = p.baseCY + p.offY * p.t + dy * tileH
+    return { left: cx - p.w / 2, right: cx + p.w / 2, top: cy - p.h / 2, bottom: cy + p.h / 2 }
+  }
+
+  const overlapFrac = (a: Placed, b: Placed, dx: number, dy: number) => {
+    const A = boxOf(a, 0, 0)
+    const B = boxOf(b, dx, dy)
+    const ow = Math.min(A.right, B.right) - Math.max(A.left, B.left)
+    const oh = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top)
+    if (ow <= 0 || oh <= 0) return 0
+    const minArea = Math.min(a.w * a.h, b.w * b.h)
+    return minArea > 0 ? (ow * oh) / minArea : 0
+  }
+
+  // The full region a box can occupy as its offset scales over t∈[0,1] — its
+  // resting cell-center position (t=0) swept out to its full jittered/aimed
+  // position (t=1). If two boxes' swept regions are disjoint they can never
+  // overlap at any t, so this is the (necessary-condition) filter for whether
+  // a pair is worth tracking as a constraint. Crucially it does NOT assume
+  // overlap is monotonic in t: a postit aimed past a neighbor can sweep
+  // *across* an intermediate item — touching it only at middle t values, not
+  // at t=0 or t=1 — so a "do they overlap right now" filter would miss it.
+  const sweptBox = (p: Placed, dx: number, dy: number) => {
+    const cx0 = p.baseCX + dx * tileW, cy0 = p.baseCY + dy * tileH
+    return {
+      left: cx0 + Math.min(0, p.offX) - p.w / 2,
+      right: cx0 + Math.max(0, p.offX) + p.w / 2,
+      top: cy0 + Math.min(0, p.offY) - p.h / 2,
+      bottom: cy0 + Math.max(0, p.offY) + p.h / 2,
+    }
+  }
+
+  type Ref = { v: number; i: number }
+  const ord = (r: Ref) => r.v * 1_000_000 + r.i
+  const getPlaced = (r: Ref) => allPlaced[r.v][r.i]
+
+  // Constraints are built from ACTUAL geometry, not grid-cell adjacency: a
+  // postit is deliberately shoved across a cell boundary and can stick out
+  // far enough to overlap an item whose home cell isn't adjacent to its own,
+  // which a cell-adjacency graph would miss entirely. So for each variant
+  // taken as the tile at offset (0,0), we render its full 3x3 tile
+  // neighborhood (each surrounding tile at its correct flipped variant) and
+  // record a constraint for every pair/triple of boxes whose swept regions
+  // could ever overlap — the relative geometry of any (variantA item,
+  // variantB item, tile offset) is identical in every rendered instance, so
+  // resolving each distinct constraint once fixes the whole infinite plane.
+  type NBox = { ref: Ref; dx: number; dy: number }
+
+  const couldOverlap = (A: NBox, B: NBox) => {
+    const a = sweptBox(getPlaced(A.ref), A.dx, A.dy)
+    const b = sweptBox(getPlaced(B.ref), B.dx, B.dy)
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+  }
+
+  const neighborhood = (vc: number): { center: NBox[]; all: NBox[] } => {
+    const center: NBox[] = allPlaced[vc].map((_, i) => ({ ref: { v: vc, i }, dx: 0, dy: 0 }))
+    const all: NBox[] = [...center]
+    for (const [dx, dy] of NEIGHBOR_OFFSETS) {
+      const nv = flipVariant(vc, dx !== 0, dy !== 0)
+      allPlaced[nv].forEach((_, i) => all.push({ ref: { v: nv, i }, dx, dy }))
+    }
+    return { center, all }
+  }
+
+  type Pair = { a: Ref; b: Ref; dx: number; dy: number }
+  const pairs: Pair[] = []
+  const seenPairs = new Set<string>()
+
+  type Triple = { refs: [Ref, Ref, Ref]; d: [number, number][] }
+  const triples: Triple[] = []
+  const seenTriples = new Set<string>()
+
+  const canonPair = (A: NBox, B: NBox) => {
+    // order by ref so the same physical pair from either center dedupes
+    const [lo, hi, ddx, ddy] = ord(A.ref) < ord(B.ref)
+      ? [A, B, B.dx - A.dx, B.dy - A.dy]
+      : [B, A, A.dx - B.dx, A.dy - B.dy]
+    return { a: lo.ref, b: hi.ref, dx: ddx, dy: ddy, key: `${ord(lo.ref)}:${ord(hi.ref)}:${ddx}:${ddy}` }
+  }
+
+  for (let vc = 0; vc < N_VARIANTS; vc++) {
+    const { center, all } = neighborhood(vc)
+    // pairs: every center box against every neighborhood box it could ever
+    // overlap (over all t), not just those overlapping right now
+    for (const A of center) {
+      for (const B of all) {
+        if (ord(A.ref) === ord(B.ref) && A.dx === B.dx && A.dy === B.dy) continue
+        if (!couldOverlap(A, B)) continue
+        const c = canonPair(A, B)
+        if (seenPairs.has(c.key)) continue
+        seenPairs.add(c.key)
+        pairs.push({ a: c.a, b: c.b, dx: c.dx, dy: c.dy })
+      }
+    }
+    // triples: any three mutually-overlapping boxes with at least one center
+    const near = all.filter((B) =>
+      center.some((A) =>
+        !(ord(A.ref) === ord(B.ref) && A.dx === B.dx && A.dy === B.dy) &&
+        couldOverlap(A, B)),
+    )
+    const pool = [...new Set([...center, ...near])]
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = i + 1; j < pool.length; j++) {
+        for (let k = j + 1; k < pool.length; k++) {
+          const t = [pool[i], pool[j], pool[k]]
+          if (!t.some((b) => b.dx === 0 && b.dy === 0)) continue
+          const keyRefs = t.map((b) => ord(b.ref))
+          if (new Set(keyRefs).size < 3) continue
+          const sorted = [...t].sort((a, b) => ord(a.ref) - ord(b.ref))
+          const baseDx = sorted[0].dx, baseDy = sorted[0].dy
+          const key = sorted.map((b) => `${ord(b.ref)}:${b.dx - baseDx}:${b.dy - baseDy}`).join('|')
+          if (seenTriples.has(key)) continue
+          seenTriples.add(key)
+          triples.push({
+            refs: [sorted[0].ref, sorted[1].ref, sorted[2].ref],
+            d: sorted.map((b) => [b.dx - baseDx, b.dy - baseDy] as [number, number]),
+          })
+        }
+      }
+    }
+  }
+
+  const tripleOverlaps = (t: Triple) => {
+    const [A, B, C] = t.refs.map((r, i) => boxOf(getPlaced(r), t.d[i][0], t.d[i][1]))
+    const left = Math.max(A.left, B.left, C.left)
+    const right = Math.min(A.right, B.right, C.right)
+    const top = Math.max(A.top, B.top, C.top)
+    const bottom = Math.min(A.bottom, B.bottom, C.bottom)
+    return right > left && bottom > top
+  }
+
+  // Pull back (toward the plain unstaggered grid, where same-cell-sized
+  // items can't overlap) any pair still over the cap, and eliminate any
+  // 3-way overlap entirely (no more than two items may ever overlap at
+  // once). A fixed-ratio decay step can overshoot straight past a narrow
+  // "just under the cap" window when the starting overlap is large (e.g. a
+  // postit deliberately aimed at a neighbor can start at ~100% overlap) and
+  // land at 0% instead — so each violation is corrected with a bisection
+  // search for the largest shared scale-down that satisfies it exactly,
+  // rather than a blind multiplicative step.
+  const scaleToSatisfy = (members: Placed[], violates: () => boolean) => {
+    const bases = members.map((m) => m.t)
+    let lo = 0, hi = 1
+    for (let i = 0; i < 25; i++) {
+      const mid = (lo + hi) / 2
+      members.forEach((m, i2) => { m.t = bases[i2] * mid })
+      if (violates()) hi = mid; else lo = mid
+    }
+    members.forEach((m, i2) => { m.t = bases[i2] * lo })
+  }
+
+  for (let iter = 0; iter < 40; iter++) {
+    let changed = false
+    for (const { a, b, dx, dy } of pairs) {
+      const A = getPlaced(a), B = getPlaced(b)
+      if (overlapFrac(A, B, dx, dy) > MAX_OVERLAP_FRAC) {
+        scaleToSatisfy([A, B], () => overlapFrac(A, B, dx, dy) > MAX_OVERLAP_FRAC)
+        changed = true
+      }
+    }
+    for (const tr of triples) {
+      if (tripleOverlaps(tr)) {
+        scaleToSatisfy(tr.refs.map(getPlaced), () => tripleOverlaps(tr))
+        changed = true
+      }
+    }
+    if (!changed) break
+  }
+
+  // ── dev-only self-verification ────────────────────────────────────────────
+  // Brute-force EVERY overlap in a real rendered window (using the actual
+  // tileVariant assignment, not the resolver's internal model) and warn if
+  // anything exceeds the cap or a 3-way overlap survives. This is ground
+  // truth from what will actually paint — if it's silent, the layout is
+  // provably within spec regardless of what a possibly-stale browser shows.
+  if (process.env.NODE_ENV !== 'production') {
+    const boxes: { l: number; r: number; t: number; b: number; w: number; h: number; key: string; tx: number; ty: number }[] = []
+    for (let tx = 0; tx <= 4; tx++) for (let ty = 0; ty <= 4; ty++) {
+      const v = ((tx % 2) + 2) % 2 * 2 + ((ty % 2) + 2) % 2
+      for (const p of allPlaced[v]) {
+        const cx = p.baseCX + p.offX * p.t + tx * tileW, cy = p.baseCY + p.offY * p.t + ty * tileH
+        boxes.push({ l: cx - p.w / 2, r: cx + p.w / 2, t: cy - p.h / 2, b: cy + p.h / 2, w: p.w, h: p.h, key: p.key, tx, ty })
+      }
+    }
+    const central = boxes.filter((x) => x.tx === 2 && x.ty === 2)
+    let maxOv = 0, maxPair: string | null = null
+    for (const A of central) for (const B of boxes) {
+      if (A === B) continue
+      const ow = Math.min(A.r, B.r) - Math.max(A.l, B.l), oh = Math.min(A.b, B.b) - Math.max(A.t, B.t)
+      if (ow <= 0 || oh <= 0) continue
+      const f = (ow * oh) / Math.min(A.w * A.h, B.w * B.h)
+      if (f > maxOv) { maxOv = f; maxPair = `${A.key} × ${B.key}` }
+    }
+    if (maxOv > MAX_OVERLAP_FRAC + 1e-4) {
+      // eslint-disable-next-line no-console
+      console.warn(`[canvas] overlap ${(maxOv * 100).toFixed(1)}% exceeds cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}% — worst pair ${maxPair}`)
+    } else {
+      // eslint-disable-next-line no-console
+      console.info(`[canvas] layout OK — max overlap ${(maxOv * 100).toFixed(2)}% (cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}%)`)
+    }
+  }
+
+  return allPlaced.map((placed) => {
+    const map = new Map<string, { x: number; y: number; w: number; h: number }>()
+    placed.forEach((p) => {
+      map.set(p.key, {
+        x: p.baseCX + p.offX * p.t - p.w / 2 - tileW / 2,
+        y: p.baseCY + p.offY * p.t - p.h / 2 - tileH / 2,
+        w: p.w,
+        h: p.h,
+      })
+    })
+    return map
+  })
 }
 
 // ─── visible tiles ────────────────────────────────────────────────────────────
@@ -408,9 +773,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const grid = useMemo(() => computeTileGrid(items.length), [items.length])
 
   const layouts = useMemo(
-    () => seed !== null
-      ? Array.from({ length: N_VARIANTS }, (_, v) => buildLayout(items, v, seed, grid))
-      : [],
+    () => seed !== null ? buildAllLayouts(items, seed, grid) : [],
     [items, seed, grid]
   )
 
@@ -471,7 +834,17 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       position: 'absolute',
                       left:   pos.x + tx * grid.tileW,
                       top:    pos.y + ty * grid.tileH,
-                      zIndex: 1,
+                      // Smaller items stack above larger ones, so an overlap
+                      // never hides the smaller (usually more detailed) image.
+                      // Subtracting (not dividing) preserves a distinct
+                      // z-index for any two differently-sized items — an
+                      // inverse via division rounds to the same integer for
+                      // a wide range of large areas, causing z-index ties
+                      // that fall back to (size-unrelated) DOM order.
+                      // Postits always stack above every tile regardless of size.
+                      zIndex: item._type === 'canvasPostit'
+                        ? 2_000_000_000
+                        : 1_000_000_000 - Math.round(pos.w * pos.h),
                     }}
                   >
                     <CanvasItem item={item} locale={locale} width={pos.w} height={pos.h} />

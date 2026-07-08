@@ -58,7 +58,8 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
       <Swiper
         modules={[Keyboard, Mousewheel, A11y]}
         keyboard={{ enabled: true }}
-        mousewheel={{ forceToAxis: true, releaseOnEdges: true }}
+        mousewheel={{ forceToAxis: true, thresholdTime: 0, thresholdDelta: 6 }}
+        speed={320}
         loop
         onSwiper={(s) => { swiperRef.current = s }}
         onSlideChange={(s) => {
