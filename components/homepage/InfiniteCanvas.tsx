@@ -48,6 +48,7 @@ function computeTileGrid(n: number) {
 const LERP     = 0.08   // fraction of gap closed per frame for wheel/trackpad
 const FRICTION = 0.96   // velocity decay per frame for drag-fling
 const MIN_V    = 0.2    // px/frame threshold to stop fling
+const DRAG_THRESHOLD = 5 // px of movement before a mousedown counts as a pan, not a click
 
 // ─── seeded random (FNV-1a 32-bit) ───────────────────────────────────────────
 
@@ -547,6 +548,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const viewSizeRef = useRef({ w: 1440, h: 900 })
   const velocity    = useRef({ x: 0, y: 0 })
   const isDragging  = useRef(false)
+  const hasDragged  = useRef(false)
   const dragStart   = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const posBuf      = useRef<{ x: number; y: number; t: number }[]>([])
 
@@ -653,10 +655,18 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   }, [startFling])
 
   // ── mouse drag — 1:1, no lerp ─────────────────────────────────────────────
+  // Panning must start regardless of what's under the cursor — including a
+  // linked image — or the canvas becomes undraggable everywhere images
+  // happen to sit. `button`/`video` keep their own direct interaction
+  // (native video controls, nav buttons), but a link only actually
+  // navigates via its click event, which fires after mouseup — so a real
+  // drag (movement past DRAG_THRESHOLD) is suppressed via onClickCapture
+  // below instead of by blocking the drag from starting at all.
   const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('a, button, video')) return
+    if ((e.target as HTMLElement).closest('button, video')) return
     cancelAnim()
     isDragging.current = true
+    hasDragged.current = false
     posBuf.current = []
     dragStart.current = {
       x: e.clientX, y: e.clientY,
@@ -667,6 +677,9 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging.current) return
+    if (Math.abs(e.clientX - dragStart.current.x) > DRAG_THRESHOLD || Math.abs(e.clientY - dragStart.current.y) > DRAG_THRESHOLD) {
+      hasDragged.current = true
+    }
     const now = performance.now()
     posBuf.current.push({ x: e.clientX, y: e.clientY, t: now })
     posBuf.current = posBuf.current.filter(p => now - p.t < 80)
@@ -684,10 +697,22 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     launchFling()
   }, [launchFling])
 
+  // A link's navigation happens on click, after mouseup — if the mousedown
+  // that started it actually panned the canvas, cancel that click so
+  // dragging across a linked image doesn't also navigate away.
+  const onClickCapture = useCallback((e: React.MouseEvent) => {
+    if (hasDragged.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      hasDragged.current = false
+    }
+  }, [])
+
   // ── touch ─────────────────────────────────────────────────────────────────
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     cancelAnim()
     isDragging.current = true
+    hasDragged.current = false
     posBuf.current = []
     const t = e.touches[0]
     dragStart.current = {
@@ -698,7 +723,11 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isDragging.current) return
-    const t = e.touches[0], now = performance.now()
+    const t = e.touches[0]
+    if (Math.abs(t.clientX - dragStart.current.x) > DRAG_THRESHOLD || Math.abs(t.clientY - dragStart.current.y) > DRAG_THRESHOLD) {
+      hasDragged.current = true
+    }
+    const now = performance.now()
     posBuf.current.push({ x: t.clientX, y: t.clientY, t: now })
     posBuf.current = posBuf.current.filter(p => now - p.t < 80)
     const x = dragStart.current.ox + (t.clientX - dragStart.current.x)
@@ -824,6 +853,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
+      onClickCapture={onClickCapture}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
