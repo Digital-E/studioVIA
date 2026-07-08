@@ -7,7 +7,8 @@ import CanvasItem from './CanvasItem'
 
 const EDGE_MARGIN = 180
 const DEFAULT_W   = 360
-const N_VARIANTS  = 4
+const VARIANT_GRID = 4  // K — variants form a KxK repeating pattern (see tileVariant)
+const N_VARIANTS  = VARIANT_GRID * VARIANT_GRID
 const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
 const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a fixed UI card, not a photo)
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
@@ -76,15 +77,17 @@ function biasedUnit(r: number): number {
 
 // ─── variant assignment per tile ──────────────────────────────────────────────
 
-// Assigning purely by (tx mod 2, ty mod 2) means each of the 4 parity
-// combinations maps to a distinct variant, so every one of a tile's 8
-// neighbors is guaranteed a different variant than the tile itself — two
-// adjacent tiles can never render the identical layout. (Requires exactly
-// N_VARIANTS === 4.)
+// Assigning purely by (tx mod K, ty mod K) means every one of a tile's 8
+// neighbors — which differ from it by exactly ±1 in tx and/or ty — lands on
+// a different (mod K) coordinate on at least one axis (true for any K >= 2),
+// so the resulting (ax, ay) pair always differs too: two adjacent tiles can
+// never render the identical layout, no matter how large K is. Larger K
+// means more distinct layouts, so the same photo arrangement repeats far
+// less often while panning.
 function tileVariant(tx: number, ty: number): number {
-  const ax = ((tx % 2) + 2) % 2
-  const ay = ((ty % 2) + 2) % 2
-  return ax * 2 + ay
+  const ax = ((tx % VARIANT_GRID) + VARIANT_GRID) % VARIANT_GRID
+  const ay = ((ty % VARIANT_GRID) + VARIANT_GRID) % VARIANT_GRID
+  return ax * VARIANT_GRID + ay
 }
 
 // ─── grid-based layout ────────────────────────────────────────────────────────
@@ -123,14 +126,18 @@ const NEIGHBOR_OFFSETS: [number, number][] = [
   [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
 ]
 
-// tileVariant() assigns variant = (tx mod 2)*2 + (ty mod 2), so a tile's
-// horizontal neighbors (left or right) are always the x-flipped variant, its
-// vertical neighbors are always the y-flipped variant, and its diagonal
-// neighbors are always the fully-flipped variant. Neighbor relationships are
-// therefore fully determined by which axes wrapped, not by direction.
-function flipVariant(v: number, flipX: boolean, flipY: boolean): number {
-  const ax = Math.floor(v / 2), ay = v % 2
-  return (flipX ? 1 - ax : ax) * 2 + (flipY ? 1 - ay : ay)
+// The variant a neighboring tile at offset (dx, dy) has, given this tile is
+// `v`. Since tileVariant() assigns variant = (tx mod K)*K + (ty mod K), the
+// neighbor's variant is just that same formula applied to the offset
+// coordinates mod K — unlike the old K=2 case, left/right (or top/bottom)
+// neighbors generally land on *different* variants from each other now, not
+// a single shared "flip", so every one of the 8 offsets is resolved
+// individually.
+function neighborVariant(v: number, dx: number, dy: number): number {
+  const ax = Math.floor(v / VARIANT_GRID), ay = v % VARIANT_GRID
+  const nax = ((ax + dx) % VARIANT_GRID + VARIANT_GRID) % VARIANT_GRID
+  const nay = ((ay + dy) % VARIANT_GRID + VARIANT_GRID) % VARIANT_GRID
+  return nax * VARIANT_GRID + nay
 }
 
 // ── pass 1+2: place every item for one variant (cell, size, jitter) ────────
@@ -385,7 +392,7 @@ function buildAllLayouts(
     const center: NBox[] = allPlaced[vc].map((_, i) => ({ ref: { v: vc, i }, dx: 0, dy: 0 }))
     const all: NBox[] = [...center]
     for (const [dx, dy] of NEIGHBOR_OFFSETS) {
-      const nv = flipVariant(vc, dx !== 0, dy !== 0)
+      const nv = neighborVariant(vc, dx, dy)
       allPlaced[nv].forEach((_, i) => all.push({ ref: { v: nv, i }, dx, dy }))
     }
     return { center, all }
