@@ -1,51 +1,69 @@
 'use client'
 import Image from 'next/image'
+import Link from 'next/link'
 import { urlFor } from '@/lib/sanity'
 import type { CanvasItem as CanvasItemType } from '@/lib/types'
 import PostIt from './PostIt'
+import { useVideoBlobSrc } from './useVideoBlobSrc'
 
 const DEFAULT_WIDTH = 400
 
-export default function CanvasItem({ item, locale }: { item: CanvasItemType; locale: string }) {
-  const w = DEFAULT_WIDTH
+function ItemLink({ href, className, style, children }: { href: string | null; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
+  if (href) return <Link href={href} className={className} style={style}>{children}</Link>
+  return <div className={className} style={style}>{children}</div>
+}
+
+function CanvasVideo({ src, w, h }: { src: string; w: number; h: number }) {
+  const { ref, blobUrl } = useVideoBlobSrc(src)
+  return (
+    <video
+      ref={ref}
+      src={blobUrl ?? undefined}
+      autoPlay
+      loop
+      muted
+      playsInline
+      style={{ width: w, height: h }}
+      className="object-cover max-w-none"
+    />
+  )
+}
+
+export default function CanvasItem({ item, locale, width, height }: { item: CanvasItemType; locale: string; width?: number; height?: number }) {
+  const w = width ?? DEFAULT_WIDTH
+  const h = height ?? Math.round(w * 0.75)
+  const projectSlug = item.linkedProject?.slug?.current
+  const href = projectSlug ? `/${locale}/projects/${projectSlug}` : null
 
   if (item._type === 'canvasPostit') {
     return (
-      <div style={{ width: w, height: Math.round(w * 1.1) }}>
+      <ItemLink href={href} className={href ? 'block' : undefined} style={{ width: w, height: h }}>
         <PostIt item={item} locale={locale} />
-      </div>
+      </ItemLink>
     )
   }
 
   if (item._type === 'canvasMedia') {
-    if (item.mediaType === 'video' && item.videoUrl) {
+    if (item.video?.asset?.url) {
       return (
-        <div className="group">
-          <video
-            src={item.videoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{ width: w, height: Math.round(w * 0.75) }}
-            className="object-cover max-w-none"
-          />
+        <ItemLink href={href} className={href ? 'group block' : 'group'}>
+          <CanvasVideo src={item.video.asset.url} w={w} h={h} />
           {item.credit && (
             <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
-        </div>
+        </ItemLink>
       )
     }
 
     if (item.image) {
       const imageUrl = urlFor(item.image).width(w * 2).url()
       return (
-        <div className="group">
+        <ItemLink href={href} className={href ? 'group block' : 'group'}>
           <Image
             src={imageUrl}
             alt=""
             width={w}
-            height={Math.round(w * 0.75)}
+            height={h}
             className="object-cover max-w-none"
             draggable={false}
             priority
@@ -53,7 +71,7 @@ export default function CanvasItem({ item, locale }: { item: CanvasItemType; loc
           {item.credit && (
             <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
-        </div>
+        </ItemLink>
       )
     }
   }

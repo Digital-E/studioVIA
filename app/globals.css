@@ -27,6 +27,7 @@
 }
 
 html {
+  font-size: 90%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -91,6 +92,12 @@ body {
   background-color: rgba(0, 0, 0, 0.02);
 }
 
+/* Restore the normal cursor over Plyr's video controls */
+.plyr {
+  cursor: auto;
+  --plyr-color-main: #1A1A1A;
+}
+
 /* Canvas cursor */
 .canvas-container {
   cursor: grab;
@@ -112,17 +119,15 @@ body {
   font-family: 'ES-Build-Medium', sans-serif;
   font-size: 1.35rem;
   line-height: 1.15;
-  text-align: justify;
 }
 
 .prose-via p + p {
-  text-indent: 2em;
+  text-indent: 4em;
   margin-top: 0;
 }
 
 /* Studio page overrides */
 .studio-page .prose-via p {
-  margin-bottom: 3.5rem;
   font-size: 1.125rem;
 }
 
@@ -133,5 +138,13 @@ body {
   font-family: 'ES-Build-Medium', sans-serif;
   font-size: 1.875rem;
   line-height: 1.15;
+  margin-top: 3.5rem;
   margin-bottom: 3.5rem;
+}
+
+.studio-page .prose-via h1:first-child,
+.studio-page .prose-via h2:first-child,
+.studio-page .prose-via h3:first-child,
+.studio-page .prose-via h4:first-child {
+  margin-top: 0;
 }

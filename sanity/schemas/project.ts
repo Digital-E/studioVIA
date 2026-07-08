@@ -5,17 +5,16 @@ const mediaSlide = defineArrayMember({
   type: 'object',
   title: 'Image / Video slide',
   fields: [
-    defineField({ name: 'slideType', type: 'string', title: 'Type', options: { list: ['image', 'video'], layout: 'radio' }, initialValue: 'image' }),
     defineField({ name: 'image', type: 'image', title: 'Image', options: { hotspot: true } }),
-    defineField({ name: 'videoUrl', type: 'url', title: 'Video URL (MP4/HLS)' }),
+    defineField({ name: 'video', type: 'file', title: 'Video (MP4)', description: 'If uploaded, this plays instead of the image.', options: { accept: 'video/*' } }),
     defineField({ name: 'caption', type: 'object', title: 'Caption (optional)', fields: [
       defineField({ name: 'de', type: 'string', title: 'German' }),
       defineField({ name: 'en', type: 'string', title: 'English' }),
     ]}),
   ],
   preview: {
-    select: { media: 'image', title: 'slideType' },
-    prepare: ({ media, title }) => ({ title: `${title} slide`, media }),
+    select: { media: 'image', video: 'video' },
+    prepare: ({ media, video }) => ({ title: video ? 'Video slide' : 'Image slide', media }),
   },
 })
 

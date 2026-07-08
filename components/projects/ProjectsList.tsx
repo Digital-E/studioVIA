@@ -12,6 +12,9 @@ interface ProjectsListProps {
 
 export default function ProjectsList({ projects, locale }: ProjectsListProps) {
   const router = useRouter()
+  // TEMP dev-only: force scroll for testing, remove before ship
+  const displayProjects = [...projects, ...projects, ...projects, ...projects]
+    .sort((a, b) => (b.year ?? '').localeCompare(a.year ?? ''))
   const [showGradient, setShowGradient] = useState(false)
 
   useEffect(() => {
@@ -47,7 +50,7 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
       </div>
 
       {/* Rows */}
-      {projects.map((project) => {
+      {displayProjects.map((project, i) => {
         const yearLabel = project.year ? String(project.year).slice(0, 4) : ''
         const isNewYear = yearLabel !== lastYear
         if (isNewYear) lastYear = yearLabel
@@ -57,14 +60,14 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
         const prize = locale === 'de' ? project.prize?.de : (project.prize?.en ?? project.prize?.de)
 
         const thumbnailUrl = project.thumbnail
-          ? urlFor(project.thumbnail).width(160).height(110).fit('crop').url()
+          ? urlFor(project.thumbnail).width(480).height(320).fit('crop').url()
           : null
 
         const clickable = !!project.slug?.current
 
         return (
           <div
-            key={project._id}
+            key={`${project._id}-${i}`}
             className={`group grid grid-cols-12 border-b border-black items-start ${clickable ? 'cursor-pointer' : ''}`}
             onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
           >

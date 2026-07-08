@@ -12,12 +12,7 @@ interface StudioContentProps {
 }
 
 const richTextComponents: PortableTextComponents = {
-  hardBreak: () => (
-    <>
-      <br />
-      <span style={{ display: 'inline-block', width: '2em' }} />
-    </>
-  ),
+  hardBreak: () => <br />,
 }
 
 export default function StudioContent({ data, locale }: StudioContentProps) {

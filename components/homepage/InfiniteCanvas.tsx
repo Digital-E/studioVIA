@@ -5,11 +5,41 @@ import CanvasItem from './CanvasItem'
 
 // ─── layout constants ─────────────────────────────────────────────────────────
 
-const TILE_W      = 2800
-const TILE_H      = 1900
 const EDGE_MARGIN = 180
 const DEFAULT_W   = 360
 const N_VARIANTS  = 4
+const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
+const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a fixed UI card, not a photo)
+const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
+const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
+const STAGGER_FRAC    = 0.03  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
+const JITTER_MULT     = 0.8   // fraction of each item's own per-cell slack used for jitter
+
+// Photo size varies per item — mostly medium/large, occasionally a small
+// accent image — instead of every item rendering at the same fixed size.
+// Postits are excluded from this and always render at POSTIT_SIZE.
+const SIZE_TIERS = [0.7, 1.2, 1.5, 1.5, 1.8, 1.8, 2, 2]
+const MAX_SIZE_TIER = Math.max(...SIZE_TIERS, POSTIT_SIZE)
+const W_MAX = DEFAULT_W * MAX_SIZE_TIER
+
+// Packed tight for a dense collage look. Best-effort, not a hard overlap
+// guarantee: worst case (two max-size items landing in neighboring cells,
+// both jittered toward each other) tops out around 5% overlap — while
+// typical/smaller items usually clear their neighbors entirely.
+const CELL_W = W_MAX * 1.05
+const CELL_H = CELL_W * POSTIT_ASPECT
+
+// ─── tile grid sizing ─────────────────────────────────────────────────────────
+
+function computeTileGrid(n: number) {
+  const cols = Math.max(2, Math.round(Math.sqrt(Math.max(n, 1) * TILE_ASPECT * POSTIT_ASPECT)))
+  const rows = Math.max(1, Math.ceil(Math.max(n, 1) / cols))
+  return {
+    cols, rows,
+    tileW: cols * CELL_W + 2 * EDGE_MARGIN,
+    tileH: rows * CELL_H + 2 * EDGE_MARGIN,
+  }
+}
 
 // ─── physics ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +59,18 @@ function rand(key: string, n: number): number {
   return (h >>> 0) / 0xffffffff
 }
 
+// Maps a uniform [0,1) draw to (-1, 1), biased toward ±1. Uniform jitter
+// mostly lands near the middle of its allowed range, so two neighbors rarely
+// both reach toward each other at once — overlap stays theoretically
+// possible but practically never happens. Biasing toward the extremes makes
+// items commonly sit near the edge of their range, so overlap is a frequent
+// outcome instead of a rare one, while never exceeding the same maxJX/maxJY
+// bound (the 5% cap on any single overlap is unaffected).
+function biasedUnit(r: number): number {
+  const u = r * 2 - 1
+  return Math.sign(u) * Math.abs(u) ** 0.4
+}
+
 // ─── variant assignment per tile ──────────────────────────────────────────────
 
 function tileVariant(tx: number, ty: number): number {
@@ -40,41 +82,73 @@ function tileVariant(tx: number, ty: number): number {
 
 // ─── grid-based layout ────────────────────────────────────────────────────────
 
+// width / height for a given item — real photo aspect ratio when known
+// (from Sanity's image metadata), a fixed ratio for postit cards, and a
+// fallback for anything without metadata (e.g. video).
+function itemAspect(item: CanvasItemType): number {
+  if (item._type === 'canvasPostit') return 1 / POSTIT_ASPECT
+  const ar = item.image?.asset?.metadata?.dimensions?.aspectRatio
+  return ar && ar > 0 ? ar : FALLBACK_ASPECT
+}
+
 function buildLayout(
   items: CanvasItemType[],
   variant: number,
   seed: string,
-): Map<string, { x: number; y: number }> {
+  grid: { cols: number; rows: number; tileW: number; tileH: number },
+): Map<string, { x: number; y: number; w: number; h: number }> {
   if (items.length === 0) return new Map()
 
-  const n    = items.length
-  const cols = Math.max(2, Math.round(Math.sqrt(n * TILE_W / TILE_H)))
-  const rows = Math.ceil(n / cols)
-  const cellW = (TILE_W - 2 * EDGE_MARGIN) / cols
-  const cellH = (TILE_H - 2 * EDGE_MARGIN) / rows
+  const { cols, rows, tileW, tileH } = grid
+
+  // Offset alternating cells (checkerboard, by row+col parity) so same-row and
+  // same-column neighbors don't share an exact baseline — a soft bias that
+  // makes any overlap read as a corner rather than a full-edge strip.
+  const staggerX = CELL_W * STAGGER_FRAC
+  const staggerY = CELL_H * STAGGER_FRAC
 
   const shuffled = [...items].sort(
     (a, b) => rand(seed + a._key + ':ord:v' + variant, 0) - rand(seed + b._key + ':ord:v' + variant, 0)
   )
 
-  const map = new Map<string, { x: number; y: number }>()
+  // Shuffle which grid cell each item lands in (rather than filling cells in
+  // sequential order) so that when items don't evenly fill the grid, the
+  // leftover empty cells are scattered across the tile instead of clumping
+  // together at the tail — a clump of empty cells reads as one large gap.
+  const cellIndices = Array.from({ length: rows * cols }, (_, i) => i).sort(
+    (a, b) => rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
+  )
+
+  const map = new Map<string, { x: number; y: number; w: number; h: number }>()
   shuffled.forEach((item, i) => {
-    const w = DEFAULT_W
-    const h = item._type === 'canvasPostit' ? Math.round(w * 1.1) : Math.round(w * 0.75)
-    const col = i % cols
-    const row = Math.floor(i / cols)
+    const sizeTier = item._type === 'canvasPostit'
+      ? POSTIT_SIZE
+      : SIZE_TIERS[Math.floor(rand(seed + item._key + ':size:v' + variant, 0) * SIZE_TIERS.length)]
+    const w = Math.round(DEFAULT_W * sizeTier)
+    const h = Math.round(w / itemAspect(item))
 
-    const cellCX = EDGE_MARGIN + (col + 0.5) * cellW
-    const cellCY = EDGE_MARGIN + (row + 0.5) * cellH
+    const cellIndex = cellIndices[i]
+    const col = cellIndex % cols
+    const row = Math.floor(cellIndex / cols)
 
-    const maxJX = Math.max(0, (cellW - w) / 2) * 0.8
-    const maxJY = Math.max(0, (cellH - h) / 2) * 0.8
-    const jX = (rand(seed + item._key + ':jx:v' + variant, 0) - 0.5) * 2 * maxJX
-    const jY = (rand(seed + item._key + ':jy:v' + variant, 0) - 0.5) * 2 * maxJY
+    const parity = (row + col) % 2 === 0 ? 1 : -1
+    const cellCX = EDGE_MARGIN + (col + 0.5) * CELL_W + parity * staggerX
+    const cellCY = EDGE_MARGIN + (row + 0.5) * CELL_H + parity * staggerY
+
+    // Smaller items (well under CELL_W/CELL_H) get generous room to roam, so
+    // they mostly land clear of their neighbors. Larger items have less
+    // slack and more often nudge into a neighbor's corner — biasedUnit below
+    // then pushes typical draws toward that edge instead of the cell center.
+    const maxJX = Math.max(0, (CELL_W - w) / 2) * JITTER_MULT
+    const maxJY = Math.max(0, (CELL_H - h) / 2) * JITTER_MULT
+    const jX = biasedUnit(rand(seed + item._key + ':jx:v' + variant, 0)) * maxJX
+    const jY = biasedUnit(rand(seed + item._key + ':jy:v' + variant, 0)) * maxJY
 
     map.set(item._key, {
-      x: cellCX + jX - w / 2 - TILE_W / 2,
-      y: cellCY + jY - h / 2 - TILE_H / 2,
+      x: cellCX + jX - w / 2 - tileW / 2,
+      y: cellCY + jY - h / 2 - tileH / 2,
+      w,
+      h,
     })
   })
 
@@ -83,12 +157,12 @@ function buildLayout(
 
 // ─── visible tiles ────────────────────────────────────────────────────────────
 
-function visibleTiles(ox: number, oy: number, vw: number, vh: number) {
+function visibleTiles(ox: number, oy: number, vw: number, vh: number, tileW: number, tileH: number) {
   const l = -vw / 2 - ox,  r = vw / 2 - ox
   const t = -vh / 2 - oy,  b = vh / 2 - oy
   const out: { tx: number; ty: number }[] = []
-  for (let tx = Math.floor(l / TILE_W) - 1; tx <= Math.ceil(r / TILE_W) + 1; tx++)
-    for (let ty = Math.floor(t / TILE_H) - 1; ty <= Math.ceil(b / TILE_H) + 1; ty++)
+  for (let tx = Math.floor(l / tileW) - 1; tx <= Math.ceil(r / tileW) + 1; tx++)
+    for (let ty = Math.floor(t / tileH) - 1; ty <= Math.ceil(b / tileH) + 1; ty++)
       out.push({ tx, ty })
   return out
 }
@@ -328,14 +402,19 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const [seed, setSeed] = useState<string | null>(null)
   useEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
 
+  // Grid dimensions (and so tile size) scale with item count so items always
+  // render at full DEFAULT_W — rather than shrinking items to fit a
+  // fixed-size tile, the tile grows to fit however many items there are.
+  const grid = useMemo(() => computeTileGrid(items.length), [items.length])
+
   const layouts = useMemo(
     () => seed !== null
-      ? Array.from({ length: N_VARIANTS }, (_, v) => buildLayout(items, v, seed))
+      ? Array.from({ length: N_VARIANTS }, (_, v) => buildLayout(items, v, seed, grid))
       : [],
-    [items, seed]
+    [items, seed, grid]
   )
 
-  const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h)
+  const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
   const displayText = locale === 'de' ? centerText?.de : (centerText?.en ?? centerText?.de)
   const lines = displayText?.split('\n') ?? []
@@ -390,12 +469,12 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                     key={item._key}
                     style={{
                       position: 'absolute',
-                      left:   pos.x + tx * TILE_W,
-                      top:    pos.y + ty * TILE_H,
+                      left:   pos.x + tx * grid.tileW,
+                      top:    pos.y + ty * grid.tileH,
                       zIndex: 1,
                     }}
                   >
-                    <CanvasItem item={item} locale={locale} />
+                    <CanvasItem item={item} locale={locale} width={pos.w} height={pos.h} />
                   </div>
                 )
               })}

@@ -16,19 +16,27 @@ export interface SanityImageRef {
   crop?: { top?: number; bottom?: number; left?: number; right?: number }
 }
 
+export interface SanityFileRef {
+  asset: {
+    _ref?: string
+    url?: string
+    _id?: string
+  }
+}
+
 export interface CanvasItem {
   _key: string
   _type: 'canvasMedia' | 'canvasPostit'
   // media
-  mediaType?: 'image' | 'video'
   image?: SanityImageRef
-  videoUrl?: string
+  video?: SanityFileRef
   credit?: string
   // postit
   date?: string
   category?: string
   title?: { de?: unknown[]; en?: unknown[] }
   backImage?: SanityImageRef
+  linkedProject?: { slug?: { current?: string } }
 }
 
 export interface HomepageData {
@@ -45,9 +53,8 @@ export interface Slide {
   _key: string
   _type: 'mediaSlide' | 'textSlide'
   // media slide
-  slideType?: 'image' | 'video'
   image?: SanityImageRef
-  videoUrl?: string
+  video?: SanityFileRef
   caption?: LocalizedString
   // text slide
   credits?: Credit[]

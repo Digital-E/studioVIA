@@ -5,12 +5,12 @@ const canvasMediaItem = defineArrayMember({
   type: 'object',
   title: 'Media',
   fields: [
-    defineField({ name: 'mediaType', type: 'string', title: 'Type', options: { list: ['image', 'video'], layout: 'radio' }, initialValue: 'image' }),
     defineField({ name: 'image', type: 'image', title: 'Image', options: { hotspot: true } }),
-    defineField({ name: 'videoUrl', type: 'url', title: 'Video URL (MP4)' }),
+    defineField({ name: 'video', type: 'file', title: 'Video (MP4)', description: 'If uploaded, this plays instead of the image.', options: { accept: 'video/*' } }),
     defineField({ name: 'credit', type: 'string', title: 'Credit' }),
+    defineField({ name: 'linkedProject', type: 'reference', title: 'Linked project', to: [{ type: 'project' }] }),
   ],
-  preview: { select: { media: 'image', title: 'mediaType' } },
+  preview: { select: { media: 'image' } },
 })
 
 const canvasPostitItem = defineArrayMember({
@@ -30,6 +30,7 @@ const canvasPostitItem = defineArrayMember({
       ],
     }),
     defineField({ name: 'backImage', type: 'image', title: 'Back image', options: { hotspot: true } }),
+    defineField({ name: 'linkedProject', type: 'reference', title: 'Linked project', to: [{ type: 'project' }] }),
   ],
   preview: { select: { title: 'category' } },
 })

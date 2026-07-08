@@ -6,6 +6,8 @@ import type { Swiper as SwiperType } from 'swiper'
 import 'swiper/css'
 import Image from 'next/image'
 import { PortableText } from '@portabletext/react'
+import type Plyr from 'plyr'
+import 'plyr/dist/plyr.css'
 import { urlFor } from '@/lib/sanity'
 import type { Slide } from '@/lib/types'
 
@@ -21,12 +23,17 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     setMousePos({ x: e.clientX, y: e.clientY })
+    if ((e.target as HTMLElement).closest('.plyr')) {
+      setSide(null)
+      return
+    }
     setSide(e.clientX < e.currentTarget.clientWidth / 2 ? 'left' : 'right')
   }, [])
 
   const handleMouseLeave = useCallback(() => setSide(null), [])
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.plyr')) return
     if (side === 'left') swiperRef.current?.slidePrev()
     else if (side === 'right') swiperRef.current?.slideNext()
   }, [side])
@@ -54,6 +61,9 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
         mousewheel={{ forceToAxis: true, releaseOnEdges: true }}
         loop
         onSwiper={(s) => { swiperRef.current = s }}
+        onSlideChange={(s) => {
+          s.el.querySelectorAll('video').forEach((video) => video.pause())
+        }}
         className="w-full h-full"
       >
         {slides.map((slide) => (
@@ -114,13 +124,45 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
     computeSize()
   }, [computeSize])
 
-  if (slide.slideType === 'video' && slide.videoUrl) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoUrl = slide.video?.asset?.url
+  const [videoReady, setVideoReady] = useState(false)
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !videoUrl) return
+    let cancelled = false
+    let player: Plyr | undefined
+    const handleCanPlay = () => setVideoReady(true)
+
+    import('plyr').then(({ default: PlyrCtor }) => {
+      if (cancelled) return
+      // Plyr's setup can reset/reload the media element, so only start
+      // watching for a decoded frame once its setup has settled.
+      player = new PlyrCtor(el, { controls: ['play','progress', 'mute', 'fullscreen'] })
+      if (el.readyState >= 3) {
+        setVideoReady(true)
+      } else {
+        el.addEventListener('canplay', handleCanPlay)
+      }
+    })
+
+    return () => {
+      cancelled = true
+      el.removeEventListener('canplay', handleCanPlay)
+      player?.destroy()
+    }
+  }, [videoUrl])
+
+  if (videoUrl) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-2">
         <video
-          src={slide.videoUrl}
-          controls
-          className="max-w-full max-h-full object-contain"
+          ref={videoRef}
+          src={videoUrl}
+          playsInline
+          preload="auto"
+          className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
         />
         {caption && <p className="font-build text-lg leading-none text-via-gray">{caption}</p>}
       </div>
@@ -167,12 +209,14 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const description = locale === 'de' ? slide.description?.de : (slide.description?.en ?? slide.description?.de)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showGradient, setShowGradient] = useState(false)
+  const [showTopGradient, setShowTopGradient] = useState(false)
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
     const check = () => {
       setShowGradient(el.scrollHeight > el.clientHeight && el.scrollTop + el.clientHeight < el.scrollHeight - 2)
+      setShowTopGradient(el.scrollTop > 2)
     }
     check()
     el.addEventListener('scroll', check)
@@ -189,7 +233,7 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
             {/* Credits column */}
             <div>
               {slide.credits?.map((credit) => (
-                <div key={credit._key} className="border-b border-black pb-0 pt-6 first:pt-0">
+                <div key={credit._key} className="border-b border-black pb-0 pt-4 pb-4 first:pt-0">
                   {credit.text && (
                     <PortableText
                       value={credit.text as Parameters<typeof PortableText>[0]['value']}
@@ -209,6 +253,13 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
           </div>
         </div>
       </div>
+
+      {showTopGradient && (
+        <div
+          className="absolute top-0 left-0 right-0 h-24 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, transparent, white)' }}
+        />
+      )}
 
       {showGradient && (
         <div

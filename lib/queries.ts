@@ -4,14 +4,14 @@ export const homepageQuery = `
     canvasItems[] {
       _key,
       _type,
-      mediaType,
       image { asset->, ...},
-      videoUrl,
+      video { asset-> },
       credit,
       date,
       category,
       title,
-      backImage { asset->, ... }
+      backImage { asset->, ... },
+      linkedProject-> { slug }
     }
   }
 `
@@ -39,9 +39,8 @@ export const projectQuery = `
     slides[] {
       _key,
       _type,
-      slideType,
       image { asset->, ...},
-      videoUrl,
+      video { asset-> },
       caption,
       credits[] { _key, text },
       description,
