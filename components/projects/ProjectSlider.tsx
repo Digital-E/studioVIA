@@ -40,7 +40,7 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
 
   return (
     <div
-      className="fixed inset-0 cursor-none" style={{ paddingTop: '8rem', paddingBottom: '8rem' }}
+      className="fixed inset-0 cursor-none pt-36 pb-32 md:pt-32 md:pb-32"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
@@ -157,7 +157,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   if (videoUrl) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-2">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-2 px-6 md:px-40">
         <video
           ref={videoRef}
           src={videoUrl}
@@ -175,7 +175,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const imageUrl = urlFor(slide.image).width(1600).url()
 
   return (
-    <div className="w-full h-full flex flex-col bg-white px-40">
+    <div className="w-full h-full flex flex-col bg-white px-6 md:px-40">
       <div ref={wrapperRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
         <Image
           src={imageUrl}
@@ -230,9 +230,16 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
     <div className="w-full h-full relative bg-white">
       <div ref={scrollRef} className="w-full h-full overflow-y-auto px-5">
         <div className="min-h-full flex items-center justify-center">
-          <div className="grid gap-4 w-full py-8" style={{ gridTemplateColumns: '300px 1fr', maxWidth: '900px' }}>
+          <div className="flex flex-col gap-10 w-full py-8 max-w-[900px] md:grid md:gap-4 md:grid-cols-[300px_1fr]">
+            {/* Description column */}
+            <div className="prose-via order-1 md:order-2">
+              {description && (
+                <PortableText value={description as Parameters<typeof PortableText>[0]['value']} />
+              )}
+            </div>
+
             {/* Credits column */}
-            <div>
+            <div className="order-2 md:order-1">
               {slide.credits?.map((credit) => (
                 <div key={credit._key} className="border-b border-black pb-0 pt-4 pb-4 first:pt-0">
                   {credit.text && (
@@ -243,13 +250,6 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
                   )}
                 </div>
               ))}
-            </div>
-
-            {/* Description column */}
-            <div className="prose-via">
-              {description && (
-                <PortableText value={description as Parameters<typeof PortableText>[0]['value']} />
-              )}
             </div>
           </div>
         </div>

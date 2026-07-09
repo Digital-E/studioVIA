@@ -16,31 +16,53 @@ const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
 const JITTER_MULT     = 0.95  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe)
 
+// Below this viewport width, tiles render smaller (see MOBILE_SCALE) — desktop is unaffected.
+const MOBILE_BREAKPOINT = 768
+const MOBILE_SCALE = 0.6
+
 // Photo size varies per item — mostly medium/large, occasionally a small
 // accent image — instead of every item rendering at the same fixed size.
 // Postits are excluded from this and always render at POSTIT_SIZE.
 const SIZE_TIERS = [0.7, 1.2, 1.5, 1.5, 1.8, 1.8, 2, 2]
 const MAX_SIZE_TIER = Math.max(...SIZE_TIERS, POSTIT_SIZE)
-const W_MAX = DEFAULT_W * MAX_SIZE_TIER
-
-// Packed tight for a dense collage look.
-const CELL_W = W_MAX * 1.05
-const CELL_H = CELL_W * POSTIT_ASPECT
 
 // Hard cap on overlap area (as a fraction of the smaller item's own area)
 // between any two neighboring items. Enforced by measuring actual placed
 // boxes and pulling pairs apart below, not by assuming a worst case up front.
 const MAX_OVERLAP_FRAC = 0.2
 
+// ─── responsive sizing constants ─────────────────────────────────────────────
+
+// All absolute pixel sizing derives from DEFAULT_W/EDGE_MARGIN scaled down
+// together on mobile, so the collage's proportions (jitter, stagger, overlap
+// caps) stay identical — only the physical tile size shrinks.
+interface SizeConstants {
+  defaultW: number
+  edgeMargin: number
+  cellW: number
+  cellH: number
+}
+
+function computeSizeConstants(isMobile: boolean): SizeConstants {
+  const scale = isMobile ? MOBILE_SCALE : 1
+  const defaultW = DEFAULT_W * scale
+  const edgeMargin = EDGE_MARGIN * scale
+  const wMax = defaultW * MAX_SIZE_TIER
+  // Packed tight for a dense collage look.
+  const cellW = wMax * 1.05
+  const cellH = cellW * POSTIT_ASPECT
+  return { defaultW, edgeMargin, cellW, cellH }
+}
+
 // ─── tile grid sizing ─────────────────────────────────────────────────────────
 
-function computeTileGrid(n: number) {
+function computeTileGrid(n: number, c: SizeConstants) {
   const cols = Math.max(2, Math.round(Math.sqrt(Math.max(n, 1) * TILE_ASPECT * POSTIT_ASPECT)))
   const rows = Math.max(1, Math.ceil(Math.max(n, 1) / cols))
   return {
     cols, rows,
-    tileW: cols * CELL_W + 2 * EDGE_MARGIN,
-    tileH: rows * CELL_H + 2 * EDGE_MARGIN,
+    tileW: cols * c.cellW + 2 * c.edgeMargin,
+    tileH: rows * c.cellH + 2 * c.edgeMargin,
   }
 }
 
@@ -148,14 +170,16 @@ function placeVariant(
   variant: number,
   seed: string,
   grid: { cols: number; rows: number; tileW: number; tileH: number },
+  c: SizeConstants,
 ): { placed: Placed[]; cellToPlacedIndex: Map<number, number> } {
   const { cols, rows, tileW, tileH } = grid
+  const { defaultW, edgeMargin, cellW, cellH } = c
 
   // Offset alternating cells (checkerboard, by row+col parity) so same-row and
   // same-column neighbors don't share an exact baseline — a soft bias that
   // makes any overlap read as a corner rather than a full-edge strip.
-  const staggerX = CELL_W * STAGGER_FRAC
-  const staggerY = CELL_H * STAGGER_FRAC
+  const staggerX = cellW * STAGGER_FRAC
+  const staggerY = cellH * STAGGER_FRAC
 
   // Postits sort first (ties broken by the usual random order) so they claim
   // whichever cells are prioritized below — normally that's a no-op, but
@@ -199,15 +223,15 @@ function placeVariant(
     const sizeTier = item._type === 'canvasPostit'
       ? POSTIT_SIZE
       : SIZE_TIERS[Math.floor(rand(seed + item._key + ':size:v' + variant, 0) * SIZE_TIERS.length)]
-    let w = Math.round(DEFAULT_W * sizeTier)
+    let w = Math.round(defaultW * sizeTier)
     let h = Math.round(w / itemAspect(item))
 
     // An item taller or wider than its own cell would overflow into
     // neighboring cells just from being centered, regardless of jitter —
     // bound it to the cell first so the collision pass below has a
     // guaranteed-safe fallback (t=0) to fall back to.
-    if (w > CELL_W || h > CELL_H) {
-      const scale = Math.min(CELL_W / w, CELL_H / h)
+    if (w > cellW || h > cellH) {
+      const scale = Math.min(cellW / w, cellH / h)
       w = Math.round(w * scale)
       h = Math.round(h * scale)
     }
@@ -215,8 +239,8 @@ function placeVariant(
     const cellIndex = cellIndices[i]
     const col = cellIndex % cols
     const row = Math.floor(cellIndex / cols)
-    const baseCX = EDGE_MARGIN + (col + 0.5) * CELL_W
-    const baseCY = EDGE_MARGIN + (row + 0.5) * CELL_H
+    const baseCX = edgeMargin + (col + 0.5) * cellW
+    const baseCY = edgeMargin + (row + 0.5) * cellH
 
     cellToPlacedIndex.set(cellIndex, placed.length)
     placed.push({
@@ -237,12 +261,12 @@ function placeVariant(
     if (p.isPostit) return
     const parity = (p.row + p.col) % 2 === 0 ? 1 : -1
 
-    // Smaller items (well under CELL_W/CELL_H) get generous room to roam, so
+    // Smaller items (well under cellW/cellH) get generous room to roam, so
     // they mostly land clear of their neighbors. Larger items have less
     // slack and more often nudge into a neighbor's corner — biasedUnit below
     // then pushes typical draws toward that edge instead of the cell center.
-    const maxJX = Math.max(0, (CELL_W - p.w) / 2) * JITTER_MULT
-    const maxJY = Math.max(0, (CELL_H - p.h) / 2) * JITTER_MULT
+    const maxJX = Math.max(0, (cellW - p.w) / 2) * JITTER_MULT
+    const maxJY = Math.max(0, (cellH - p.h) / 2) * JITTER_MULT
     const jX = biasedUnit(rand(seed + p.key + ':jx:v' + variant, 0)) * maxJX
     const jY = biasedUnit(rand(seed + p.key + ':jy:v' + variant, 0)) * maxJY
     p.offX = parity * staggerX + jX
@@ -262,8 +286,8 @@ function placeVariant(
   placed.forEach((p) => {
     if (!p.isPostit) return
     const parity = (p.row + p.col) % 2 === 0 ? 1 : -1
-    const fallbackJX = Math.max(0, (CELL_W - p.w) / 2) * JITTER_MULT
-    const fallbackJY = Math.max(0, (CELL_H - p.h) / 2) * JITTER_MULT
+    const fallbackJX = Math.max(0, (cellW - p.w) / 2) * JITTER_MULT
+    const fallbackJY = Math.max(0, (cellH - p.h) / 2) * JITTER_MULT
 
     type Candidate = { neighborIdx: number; dc: number; dr: number; wrapDx: number; wrapDy: number }
     const candidates: Candidate[] = []
@@ -321,6 +345,7 @@ function buildAllLayouts(
   items: CanvasItemType[],
   seed: string,
   grid: { cols: number; rows: number; tileW: number; tileH: number },
+  c: SizeConstants,
 ): Map<string, { x: number; y: number; w: number; h: number }>[] {
   if (items.length === 0) return Array.from({ length: N_VARIANTS }, () => new Map())
 
@@ -328,7 +353,7 @@ function buildAllLayouts(
 
   const allPlaced: Placed[][] = []
   for (let v = 0; v < N_VARIANTS; v++) {
-    const { placed } = placeVariant(items, v, seed, grid)
+    const { placed } = placeVariant(items, v, seed, grid, c)
     allPlaced.push(placed)
   }
 
@@ -728,29 +753,40 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     }
   }, [cancelAnim])
 
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging.current) return
-    const t = e.touches[0]
-    if (Math.abs(t.clientX - dragStart.current.x) > DRAG_THRESHOLD || Math.abs(t.clientY - dragStart.current.y) > DRAG_THRESHOLD) {
-      hasDragged.current = true
-    }
-    const now = performance.now()
-    posBuf.current.push({ x: t.clientX, y: t.clientY, t: now })
-    posBuf.current = posBuf.current.filter(p => now - p.t < 80)
-    const x = dragStart.current.ox + (t.clientX - dragStart.current.x)
-    const y = dragStart.current.oy + (t.clientY - dragStart.current.y)
-    targetRef.current.x = x
-    targetRef.current.y = y
-    applyTransform(x, y)
-    syncTiles()
-    e.preventDefault()
-  }, [applyTransform, syncTiles])
-
   const onTouchEnd = useCallback(() => {
     if (!isDragging.current) return
     isDragging.current = false
     launchFling()
   }, [launchFling])
+
+  // React attaches its synthetic touchmove listener as passive, so calling
+  // preventDefault() through onTouchMove throws ("Unable to preventDefault
+  // inside passive event listener invocation") on every drag frame on
+  // mobile. Attach a native listener with passive: false instead, same as
+  // the wheel handler below.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handler = (e: TouchEvent) => {
+      if (!isDragging.current) return
+      const t = e.touches[0]
+      if (Math.abs(t.clientX - dragStart.current.x) > DRAG_THRESHOLD || Math.abs(t.clientY - dragStart.current.y) > DRAG_THRESHOLD) {
+        hasDragged.current = true
+      }
+      const now = performance.now()
+      posBuf.current.push({ x: t.clientX, y: t.clientY, t: now })
+      posBuf.current = posBuf.current.filter(p => now - p.t < 80)
+      const x = dragStart.current.ox + (t.clientX - dragStart.current.x)
+      const y = dragStart.current.oy + (t.clientY - dragStart.current.y)
+      targetRef.current.x = x
+      targetRef.current.y = y
+      applyTransform(x, y)
+      syncTiles()
+      e.preventDefault()
+    }
+    el.addEventListener('touchmove', handler, { passive: false })
+    return () => el.removeEventListener('touchmove', handler)
+  }, [applyTransform, syncTiles])
 
   // ── trackpad / wheel — updates target, lerp loop chases it ───────────────
   useEffect(() => {
@@ -792,60 +828,22 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const [seed, setSeed] = useState<string | null>(null)
   useEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
 
+  // Below MOBILE_BREAKPOINT, tiles render at MOBILE_SCALE — desktop keeps
+  // DEFAULT_W untouched. Tracked as a boolean (not raw width) so the heavy
+  // grid/layout rebuild below only reruns when crossing the breakpoint, not
+  // on every resize tick (e.g. mobile browser chrome show/hide).
+  const isMobile = viewSize.w < MOBILE_BREAKPOINT
+  const sizeConstants = useMemo(() => computeSizeConstants(isMobile), [isMobile])
+
   // Grid dimensions (and so tile size) scale with item count so items always
-  // render at full DEFAULT_W — rather than shrinking items to fit a
+  // render at full defaultW — rather than shrinking items to fit a
   // fixed-size tile, the tile grows to fit however many items there are.
-  const grid = useMemo(() => computeTileGrid(items.length), [items.length])
+  const grid = useMemo(() => computeTileGrid(items.length, sizeConstants), [items.length, sizeConstants])
 
   const layouts = useMemo(
-    () => seed !== null ? buildAllLayouts(items, seed, grid) : [],
-    [items, seed, grid]
+    () => seed !== null ? buildAllLayouts(items, seed, grid, sizeConstants) : [],
+    [items, seed, grid, sizeConstants]
   )
-
-  // ── dev-only DOM ground-truth check ───────────────────────────────────────
-  // Measures the ACTUAL painted rectangles (getBoundingClientRect) of every
-  // rendered tile and brute-forces their overlaps. Unlike a model-based
-  // check this cannot diverge from what's on screen — if the model says a
-  // layout is fine but a tile still renders taller/wider than its box (e.g.
-  // a media element ignoring its forced size), this catches it and names the
-  // offending pair with their model vs. actual dimensions.
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production' || seed === null) return
-    const id = requestAnimationFrame(() => {
-      const els = Array.from(document.querySelectorAll<HTMLElement>('[data-ci]'))
-      const rects = els.map((el) => {
-        // Measure the actual media element (img/video), not the wrapper —
-        // the wrapper also contains an invisible hover-credit caption that
-        // would inflate its height and report phantom overlaps.
-        const media = el.querySelector('img, video') as HTMLElement | null
-        const r = (media ?? el).getBoundingClientRect()
-        return {
-          key: el.dataset.ci!, r,
-          cw: Number(el.dataset.cw), ch: Number(el.dataset.ch),
-        }
-      })
-      let maxOv = 0, worst: string | null = null
-      for (let i = 0; i < rects.length; i++) {
-        for (let j = i + 1; j < rects.length; j++) {
-          const A = rects[i], B = rects[j]
-          const ow = Math.min(A.r.right, B.r.right) - Math.max(A.r.left, B.r.left)
-          const oh = Math.min(A.r.bottom, B.r.bottom) - Math.max(A.r.top, B.r.top)
-          if (ow <= 0 || oh <= 0) continue
-          const minArea = Math.min(A.r.width * A.r.height, B.r.width * B.r.height)
-          if (minArea <= 0) continue
-          const f = (ow * oh) / minArea
-          if (f > maxOv) {
-            maxOv = f
-            worst = `${A.key} (model ${A.cw}x${A.ch}, painted ${Math.round(A.r.width)}x${Math.round(A.r.height)}) × ${B.key} (model ${B.cw}x${B.ch}, painted ${Math.round(B.r.width)}x${Math.round(B.r.height)})`
-          }
-        }
-      }
-      const tag = maxOv > MAX_OVERLAP_FRAC + 1e-4 ? 'warn' : 'info'
-      // eslint-disable-next-line no-console
-      console[tag](`[canvas DOM] max painted overlap ${(maxOv * 100).toFixed(1)}% (cap ${(MAX_OVERLAP_FRAC * 100).toFixed(0)}%)${worst ? ` — worst ${worst}` : ''}`)
-    })
-    return () => cancelAnimationFrame(id)
-  }, [seed, layouts, offset, viewSize])
 
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
@@ -862,7 +860,6 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       onMouseLeave={onMouseUp}
       onClickCapture={onClickCapture}
       onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">

@@ -40,9 +40,9 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
 
   return (
     <>
-    <div className="pt-16 pb-24 pl-5">
+    <div className="pt-[3.5rem] md:pt-16 pb-24 pl-5 pr-5 md:pr-0">
       {/* Header */}
-      <div className="grid grid-cols-12 border-b border-black pb-1">
+      <div className="hidden md:grid md:grid-cols-12 border-b border-black pb-1">
         <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearLabel}</div>
         <div className="col-span-6 font-build text-3xl leading-none text-via-gray">{nameLabel}</div>
         <div className="col-span-3 font-build text-3xl leading-none text-via-gray">{locationLabel}</div>
@@ -68,16 +68,17 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
         return (
           <div
             key={`${project._id}-${i}`}
-            className={`group grid grid-cols-12 border-b border-black items-start ${clickable ? 'cursor-pointer' : ''}`}
+            className={`group flex md:grid md:grid-cols-12 border-b border-black items-start ${i === 0 ? 'border-t md:border-t-0' : ''} ${clickable ? 'cursor-pointer' : ''}`}
             onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
           >
-            <div className="col-span-2 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{isNewYear ? yearLabel : ''}</div>
-            <div className="col-span-6 font-build text-3xl leading-none pr-6 py-[0.9rem] group-hover:text-via-gray">
+            <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">{isNewYear ? yearLabel : ''}</div>
+            <div className="flex-1 md:col-span-6 font-build text-[1rem] md:text-3xl leading-none pl-4 md:pl-0 pr-4 md:pr-6 py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">
               <span className="font-medium">{title}</span>
+              {location && <span className="md:hidden"><br />{location}</span>}
               {prize && <><br /><span>{prize}</span></>}
             </div>
-            <div className="col-span-3 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{location}</div>
-            <div className="col-start-12 col-span-1 py-[2px]" style={{ position: 'relative', width: '125%', left: '-25%' }}>
+            <div className="hidden md:block md:col-span-3 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{location}</div>
+            <div className="w-24 flex-shrink-0 md:w-auto md:col-start-12 md:col-span-1 py-[2px] md:relative md:!w-[125%] md:left-[-25%]">
               {thumbnailUrl && (
                 <div className="relative aspect-[1.5/1]">
                   <Image

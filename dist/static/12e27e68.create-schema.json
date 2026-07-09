@@ -28,53 +28,33 @@
             "fields": [
               {
                 "options": {
-                  "list": [
-                    "image",
-                    "video"
-                  ],
-                  "layout": "radio"
-                },
-                "initialValue": "image",
-                "name": "mediaType",
-                "type": "string",
-                "title": "Type"
-              },
-              {
-                "options": {
                   "hotspot": true
                 },
                 "name": "image",
                 "type": "image"
               },
               {
-                "validation": [
-                  {
-                    "rules": [
-                      {
-                        "flag": "uri",
-                        "constraint": {
-                          "options": {
-                            "scheme": [
-                              "/^http$/",
-                              "/^https$/"
-                            ],
-                            "allowRelative": false,
-                            "relativeOnly": false,
-                            "allowCredentials": false
-                          }
-                        }
-                      }
-                    ],
-                    "level": "error"
-                  }
-                ],
-                "name": "videoUrl",
-                "type": "url",
-                "title": "Video URL (MP4)"
+                "options": {
+                  "accept": "video/*"
+                },
+                "description": "If uploaded, this plays instead of the image.",
+                "name": "video",
+                "type": "file",
+                "title": "Video (MP4)"
               },
               {
                 "name": "credit",
                 "type": "string"
+              },
+              {
+                "to": [
+                  {
+                    "type": "project"
+                  }
+                ],
+                "name": "linkedProject",
+                "type": "reference",
+                "title": "Linked project"
               }
             ],
             "type": "object",
@@ -350,6 +330,16 @@
                 "name": "backImage",
                 "type": "image",
                 "title": "Back image"
+              },
+              {
+                "to": [
+                  {
+                    "type": "project"
+                  }
+                ],
+                "name": "linkedProject",
+                "type": "reference",
+                "title": "Linked project"
               }
             ],
             "type": "object",
@@ -454,49 +444,19 @@
             "fields": [
               {
                 "options": {
-                  "list": [
-                    "image",
-                    "video"
-                  ],
-                  "layout": "radio"
-                },
-                "initialValue": "image",
-                "name": "slideType",
-                "type": "string",
-                "title": "Type"
-              },
-              {
-                "options": {
                   "hotspot": true
                 },
                 "name": "image",
                 "type": "image"
               },
               {
-                "validation": [
-                  {
-                    "rules": [
-                      {
-                        "flag": "uri",
-                        "constraint": {
-                          "options": {
-                            "scheme": [
-                              "/^http$/",
-                              "/^https$/"
-                            ],
-                            "allowRelative": false,
-                            "relativeOnly": false,
-                            "allowCredentials": false
-                          }
-                        }
-                      }
-                    ],
-                    "level": "error"
-                  }
-                ],
-                "name": "videoUrl",
-                "type": "url",
-                "title": "Video URL (MP4/HLS)"
+                "options": {
+                  "accept": "video/*"
+                },
+                "description": "If uploaded, this plays instead of the image.",
+                "name": "video",
+                "type": "file",
+                "title": "Video (MP4)"
               },
               {
                 "fields": [
