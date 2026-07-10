@@ -40,7 +40,7 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
 
   return (
     <>
-    <div className="pt-[3.5rem] md:pt-16 pb-24 pl-5 pr-5 md:pr-0">
+    <div className="pt-[3.5rem] md:pt-20 pb-24 pl-5 pr-5 md:pr-0">
       {/* Header */}
       <div className="hidden md:grid md:grid-cols-12 border-b border-black pb-1">
         <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearLabel}</div>

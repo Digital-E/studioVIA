@@ -101,7 +101,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
       <div className="relative w-full h-full hidden md:flex" style={{ gap: '2rem', paddingBottom: NAV_CLEARANCE }}>
         {/* Text area: the only part that scrolls */}
         <div className="relative h-full" style={{ flex: '1 1 0%' }}>
-          <div ref={scrollRef} className="studio-page w-full h-full overflow-y-auto pt-44 pb-8 pl-5">
+          <div ref={scrollRef} className="studio-page scrollbar-hide w-full h-full overflow-y-auto pt-44 pb-8 pl-5">
             <div className="grid gap-8" style={{ gridTemplateColumns: '1fr 1fr' }}>
               {/* Left column */}
               <div className="prose-via" style={{ paddingRight: '1.5rem' }}>

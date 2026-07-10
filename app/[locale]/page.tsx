@@ -16,7 +16,7 @@ export default async function HomePage({
 
   return (
     <main className="relative w-screen h-screen overflow-hidden">
-      <Navigation locale={locale} activePage={null} />
+      <Navigation locale={locale} activePage={null} isHome />
       <InfiniteCanvas
         items={data.canvasItems ?? []}
         centerText={data.centerText}

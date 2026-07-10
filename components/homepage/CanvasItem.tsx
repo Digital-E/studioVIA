@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { urlFor } from '@/lib/sanity'
 import type { CanvasItem as CanvasItemType } from '@/lib/types'
 import PostIt from './PostIt'
-import { useVideoBlobSrc } from './useVideoBlobSrc'
+import { useVideoLazySrc } from './useVideoBlobSrc'
 
 const DEFAULT_WIDTH = 400
 
@@ -14,15 +14,16 @@ function ItemLink({ href, className, style, children }: { href: string | null; c
 }
 
 function CanvasVideo({ src, w, h }: { src: string; w: number; h: number }) {
-  const { ref, blobUrl } = useVideoBlobSrc(src)
+  const { ref, src: lazySrc } = useVideoLazySrc(src)
   return (
     <video
       ref={ref}
-      src={blobUrl ?? undefined}
+      src={lazySrc}
       autoPlay
       loop
       muted
       playsInline
+      draggable={false}
       style={{ width: w, height: h }}
       className="object-cover max-w-none"
     />
@@ -49,7 +50,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
         <ItemLink href={href} className={href ? 'group block' : 'group'}>
           <CanvasVideo src={item.video.asset.url} w={w} h={h} />
           {item.credit && (
-            <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+            <p className="font-build text-lg text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
         </ItemLink>
       )
@@ -70,7 +71,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
             priority
           />
           {item.credit && (
-            <p className="font-build text-lg text-via-gray mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+            <p className="font-build text-lg text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
         </ItemLink>
       )

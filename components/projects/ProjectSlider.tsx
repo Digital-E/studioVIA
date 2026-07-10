@@ -165,7 +165,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
           preload="auto"
           className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
         />
-        {caption && <p className="font-build text-lg leading-none text-via-gray">{caption}</p>}
+        {caption && <p className="font-build text-lg leading-none text-via-black">{caption}</p>}
       </div>
     )
   }
@@ -189,7 +189,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
           draggable={false}
         />
         {caption && (
-          <p className="font-build text-lg leading-none text-via-gray text-center flex-shrink-0">
+          <p className="font-build text-lg leading-none text-via-black text-center flex-shrink-0">
             {caption}
           </p>
         )}

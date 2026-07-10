@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useState, useCallback, useMemo, useEffect, Fragment } from 'react'
+import Link from 'next/link'
 import type { CanvasItem as CanvasItemType, LocalizedString } from '@/lib/types'
 import CanvasItem from './CanvasItem'
 
@@ -14,7 +15,8 @@ const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a 
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
 const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
-const JITTER_MULT     = 0.95  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe)
+const JITTER_MULT     = 0.55  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe). Kept well under 1 (not just <1) so items stay near their cell center rather than roaming to the far edge, which is what was reading as big empty gaps between neighbors.
+const BACKDROP_BLEED  = 60    // px each per-tile blend backdrop rect extends past its own tile bounds, so content spilling past a tile edge (e.g. a credit caption below its image) still lands on a painted backdrop instead of a seam
 
 // Below this viewport width, tiles render smaller (see MOBILE_SCALE) — desktop is unaffected.
 const MOBILE_BREAKPOINT = 768
@@ -23,8 +25,15 @@ const MOBILE_SCALE = 0.6
 // Photo size varies per item — mostly medium/large, occasionally a small
 // accent image — instead of every item rendering at the same fixed size.
 // Postits are excluded from this and always render at POSTIT_SIZE.
-const SIZE_TIERS = [0.7, 1.2, 1.5, 1.5, 1.8, 1.8, 2, 2]
-const MAX_SIZE_TIER = Math.max(...SIZE_TIERS, POSTIT_SIZE)
+const SIZE_TIERS = [1, 1.25, 1.4, 1.4, 1.6, 1.6, 1.7, 1.7]
+// Cell size is based on this average, not the max tier above — most items
+// draw a tier well under the max, so sizing every cell to comfortably fit
+// the rare largest tile left a lot of empty margin around the common,
+// smaller ones. The rare item that does draw above this still renders at
+// full size — it's just clamped to the cell if it doesn't fit (see the
+// w > cellW check in placeVariant) and/or allowed to overlap a neighbor up
+// to MAX_OVERLAP_FRAC, both already handled below.
+const TYPICAL_SIZE_TIER = SIZE_TIERS.reduce((a, b) => a + b, 0) / SIZE_TIERS.length
 
 // Hard cap on overlap area (as a fraction of the smaller item's own area)
 // between any two neighboring items. Enforced by measuring actual placed
@@ -47,9 +56,9 @@ function computeSizeConstants(isMobile: boolean): SizeConstants {
   const scale = isMobile ? MOBILE_SCALE : 1
   const defaultW = DEFAULT_W * scale
   const edgeMargin = EDGE_MARGIN * scale
-  const wMax = defaultW * MAX_SIZE_TIER
+  const wTypical = defaultW * TYPICAL_SIZE_TIER
   // Packed tight for a dense collage look.
-  const cellW = wMax * 1.05
+  const cellW = wTypical * 1.05
   const cellH = cellW * POSTIT_ASPECT
   return { defaultW, edgeMargin, cellW, cellH }
 }
@@ -57,8 +66,32 @@ function computeSizeConstants(isMobile: boolean): SizeConstants {
 // ─── tile grid sizing ─────────────────────────────────────────────────────────
 
 function computeTileGrid(n: number, c: SizeConstants) {
-  const cols = Math.max(2, Math.round(Math.sqrt(Math.max(n, 1) * TILE_ASPECT * POSTIT_ASPECT)))
-  const rows = Math.max(1, Math.ceil(Math.max(n, 1) / cols))
+  const count = Math.max(n, 1)
+  const target = Math.sqrt(count * TILE_ASPECT * POSTIT_ASPECT)
+  const targetCols = Math.max(2, Math.round(target))
+
+  // A cols pick straight from the target aspect ratio can leave rows*cols
+  // well above n (e.g. n=20 -> 6 cols x 4 rows = 24 cells for 20 items) —
+  // the leftover cells render with nothing placed in them, showing up as
+  // flat empty gaps in the collage rather than jitter-sized gaps. Search a
+  // small range of column counts around the target and prefer whichever
+  // leaves the fewest empty cells, only falling back to aspect-closeness to
+  // break ties among equally-full options.
+  let cols = targetCols
+  let bestLeftover = Infinity
+  let bestDist = Infinity
+  for (let cCols = Math.max(2, targetCols - 3); cCols <= targetCols + 3; cCols++) {
+    const cRows = Math.max(1, Math.ceil(count / cCols))
+    const leftover = cRows * cCols - count
+    const dist = Math.abs(cCols - target)
+    if (leftover < bestLeftover || (leftover === bestLeftover && dist < bestDist)) {
+      bestLeftover = leftover
+      bestDist = dist
+      cols = cCols
+    }
+  }
+
+  const rows = Math.max(1, Math.ceil(count / cols))
   return {
     cols, rows,
     tileW: cols * c.cellW + 2 * c.edgeMargin,
@@ -688,14 +721,15 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
 
   // ── mouse drag — 1:1, no lerp ─────────────────────────────────────────────
   // Panning must start regardless of what's under the cursor — including a
-  // linked image — or the canvas becomes undraggable everywhere images
-  // happen to sit. `button`/`video` keep their own direct interaction
-  // (native video controls, nav buttons), but a link only actually
-  // navigates via its click event, which fires after mouseup — so a real
-  // drag (movement past DRAG_THRESHOLD) is suppressed via onClickCapture
-  // below instead of by blocking the drag from starting at all.
+  // linked image or a video tile (autoplaying, no controls, so there's
+  // nothing on it to protect) — or the canvas becomes undraggable everywhere
+  // those happen to sit. `button` keeps its own direct interaction (nav
+  // buttons), but a link only actually navigates via its click event, which
+  // fires after mouseup — so a real drag (movement past DRAG_THRESHOLD) is
+  // suppressed via onClickCapture below instead of by blocking the drag from
+  // starting at all.
   const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button, video')) return
+    if ((e.target as HTMLElement).closest('button')) return
     cancelAnim()
     isDragging.current = true
     hasDragged.current = false
@@ -853,7 +887,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   return (
     <div
       ref={containerRef}
-      className="canvas-container fixed inset-0 overflow-hidden select-none"
+      className="canvas-container fixed inset-0 overflow-hidden select-none bg-white"
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
@@ -862,15 +896,19 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
+      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10  mix-blend-difference text-white">
         <div className="text-center">
-          <span className="block font-build text-3xl leading-none">Studio</span>
-          <span className="block font-build text-3xl font-medium leading-none">VIA</span>
-          <div style={{ marginTop: 30 }}>
-            {lines.map((line, i) => (
-              <span key={i} className="block font-build text-3xl text-via-gray leading-none">{line}</span>
-            ))}
-          </div>
+          <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
+            <span className="block font-build text-3xl leading-none">Studio</span>
+            <span className="block font-build text-3xl font-medium leading-none">VIA</span>
+          </Link>
+            <div style={{ marginTop: 30 }}>
+          <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
+              {lines.map((line, i) => (
+                <span key={i} className="block font-build text-3xl leading-none">{line}</span>
+              ))}
+          </Link>
+            </div>
         </div>
       </div>
 
@@ -892,6 +930,30 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
           const layout = layouts[tileVariant(tx, ty)]
           return (
             <Fragment key={`${tx}:${ty}`}>
+              {/* This pan layer (`innerRef`) is promoted to its own GPU
+                  compositor layer by `willChange: transform` above, which
+                  isolates mix-blend-mode descendants (e.g. photo credits)
+                  from the true page background painted outside this layer —
+                  they'd have nothing to blend against over an empty gap. A
+                  plain white rect per tile, sitting below every item's
+                  z-index, gives blend-mode content a real backdrop *inside*
+                  this layer without covering any item (items always paint
+                  above it) and without needing an opaque box on the
+                  blend-mode element itself, which would hide neighbors it
+                  happens to overlap. Overlapped into neighboring tiles by
+                  BACKDROP_BLEED so a credit's spillover below its own cell
+                  (its height isn't budgeted into the grid layout) always
+                  lands on a painted backdrop instead of a seam between tiles. */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: tx * grid.tileW - BACKDROP_BLEED,
+                  top: ty * grid.tileH - BACKDROP_BLEED,
+                  width: grid.tileW + BACKDROP_BLEED * 2,
+                  height: grid.tileH + BACKDROP_BLEED * 2,
+                  background: 'white',
+                }}
+              />
               {items.map((item) => {
                 const pos = layout.get(item._key)
                 if (!pos) return null
