@@ -25,6 +25,9 @@ export default defineConfig({
             S.listItem().title('Studio Page').id('studioPage').child(
               S.document().schemaType('studioPage').documentId('studioPage')
             ),
+            S.listItem().title('All Projects Page').id('allProjectsPage').child(
+              S.document().schemaType('allProjectsPage').documentId('allProjectsPage')
+            ),
             S.divider(),
             S.documentTypeListItem('project').title('Projects'),
           ]),

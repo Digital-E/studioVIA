@@ -84,6 +84,7 @@ export const projectSchema = defineType({
       ],
     }),
     defineField({ name: 'thumbnail', type: 'image', title: 'List thumbnail', options: { hotspot: true } }),
+    defineField({ name: 'thumbnailVideo', type: 'file', title: 'List thumbnail video (optional)', description: 'If uploaded, this plays instead of the thumbnail image.', options: { accept: 'video/*' } }),
     defineField({
       name: 'slides',
       type: 'array',

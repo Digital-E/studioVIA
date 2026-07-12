@@ -439,6 +439,15 @@
         "title": "List thumbnail"
       },
       {
+        "options": {
+          "accept": "video/*"
+        },
+        "description": "If uploaded, this plays instead of the thumbnail image.",
+        "name": "thumbnailVideo",
+        "type": "file",
+        "title": "List thumbnail video (optional)"
+      },
+      {
         "of": [
           {
             "fields": [
@@ -1392,6 +1401,46 @@
       }
     ],
     "name": "studioPage",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Projects not added to a year here are hidden from the All Projects list.",
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "year",
+                "type": "string",
+                "title": "Year (e.g. 2024)"
+              },
+              {
+                "of": [
+                  {
+                    "to": [
+                      {
+                        "type": "project"
+                      }
+                    ],
+                    "type": "reference",
+                    "title": "Reference to project"
+                  }
+                ],
+                "name": "projects",
+                "type": "array"
+              }
+            ],
+            "type": "object",
+            "name": "yearGroup",
+            "title": "Year"
+          }
+        ],
+        "name": "years",
+        "type": "array"
+      }
+    ],
+    "name": "allProjectsPage",
     "type": "document"
   }
 ]

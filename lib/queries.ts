@@ -25,6 +25,24 @@ export const projectsListQuery = `
     location,
     prize,
     thumbnail { asset-> },
+    thumbnailVideo { asset-> },
+  }
+`
+
+export const allProjectsPageQuery = `
+  *[_type == "allProjectsPage"][0] {
+    years[] {
+      year,
+      projects[]-> {
+        _id,
+        title,
+        slug,
+        location,
+        prize,
+        thumbnail { asset-> },
+        thumbnailVideo { asset-> },
+      }
+    }
   }
 `
 

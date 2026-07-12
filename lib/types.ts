@@ -65,10 +65,11 @@ export interface Project {
   _id: string
   title: LocalizedString
   slug: { current: string }
-  year: string
+  year?: string
   location: LocalizedString
   prize?: LocalizedString
   thumbnail?: SanityImageRef
+  thumbnailVideo?: SanityFileRef
   slides?: Slide[]
 }
 
@@ -76,4 +77,13 @@ export interface StudioPageData {
   leftColumn?: { de?: unknown[]; en?: unknown[] }
   rightColumn?: { de?: unknown[]; en?: unknown[] }
   photo?: SanityImageRef
+}
+
+export interface AllProjectsYearGroup {
+  year?: string
+  projects?: Project[]
+}
+
+export interface AllProjectsPageData {
+  years?: AllProjectsYearGroup[]
 }

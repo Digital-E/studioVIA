@@ -3,18 +3,40 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { urlFor } from '@/lib/sanity'
-import type { Project } from '@/lib/types'
+import type { AllProjectsYearGroup } from '@/lib/types'
+import { useVideoBlobSrc } from '@/components/homepage/useVideoBlobSrc'
 
 interface ProjectsListProps {
-  projects: Project[]
+  years: AllProjectsYearGroup[]
   locale: string
 }
 
-export default function ProjectsList({ projects, locale }: ProjectsListProps) {
+function ThumbnailVideo({ src }: { src: string }) {
+  const { ref, blobUrl } = useVideoBlobSrc(src)
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <video
+      ref={ref}
+      src={blobUrl ?? undefined}
+      autoPlay
+      loop
+      muted
+      playsInline
+      onLoadedData={() => setLoaded(true)}
+      className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+    />
+  )
+}
+
+export default function ProjectsList({ years, locale }: ProjectsListProps) {
   const router = useRouter()
-  // TEMP dev-only: force scroll for testing, remove before ship
-  const displayProjects = [...projects, ...projects, ...projects, ...projects]
-    .sort((a, b) => (b.year ?? '').localeCompare(a.year ?? ''))
+  const rows = years.flatMap((group) =>
+    (group.projects ?? []).map((project, idx) => ({
+      project,
+      year: group.year ?? '',
+      isNewYear: idx === 0,
+    }))
+  )
   const [showGradient, setShowGradient] = useState(false)
 
   useEffect(() => {
@@ -32,33 +54,28 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
     }
   }, [])
 
-  const yearLabel = locale === 'de' ? 'JAHR' : 'YEAR'
+  const yearColumnLabel = locale === 'de' ? 'JAHR' : 'YEAR'
   const nameLabel = locale === 'de' ? 'PROJEKT NAME' : 'PROJECT NAME'
   const locationLabel = locale === 'de' ? 'ORT' : 'LOCATION'
-
-  let lastYear: string | null = null
 
   return (
     <>
     <div className="pt-[4.5rem] md:pt-20 pb-24 pl-5 pr-5">
       {/* Header */}
       <div className="hidden md:grid md:grid-cols-12 border-b border-black pb-1">
-        <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearLabel}</div>
+        <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearColumnLabel}</div>
         <div className="col-span-5 font-build text-3xl leading-none text-via-gray">{nameLabel}</div>
         <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{locationLabel}</div>
         <div className="col-start-11 col-span-2" />
       </div>
 
       {/* Rows */}
-      {displayProjects.map((project, i) => {
-        const yearLabel = project.year ? String(project.year).slice(0, 4) : ''
-        const isNewYear = yearLabel !== lastYear
-        if (isNewYear) lastYear = yearLabel
-
+      {rows.map(({ project, year, isNewYear }, i) => {
         const title = locale === 'de' ? project.title?.de : (project.title?.en ?? project.title?.de)
         const location = locale === 'de' ? project.location?.de : (project.location?.en ?? project.location?.de)
         const prize = locale === 'de' ? project.prize?.de : (project.prize?.en ?? project.prize?.de)
 
+        const thumbnailVideoUrl = project.thumbnailVideo?.asset?.url
         const thumbnailUrl = project.thumbnail
           ? urlFor(project.thumbnail).width(480).url()
           : null
@@ -68,10 +85,10 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
         return (
           <div
             key={`${project._id}-${i}`}
-            className={`group flex md:grid md:grid-cols-12 border-b border-black items-start min-h-[65px] md:min-h-[160px] ${i === 0 ? 'border-t md:border-t-0' : ''} ${clickable ? 'cursor-pointer' : ''}`}
+            className={`group flex md:grid md:grid-cols-12 border-b border-black items-start h-[65px] md:h-[160px] ${i === 0 ? 'border-t md:border-t-0' : ''} ${clickable ? 'cursor-pointer' : ''}`}
             onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
           >
-            <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">{isNewYear ? yearLabel : ''}</div>
+            <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">{isNewYear ? year : ''}</div>
             <div className="flex-1 md:col-span-5 font-build text-[1rem] md:text-3xl leading-none pl-4 md:pl-0 pr-4 md:pr-6 py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">
               <span className="font-medium">{title}</span>
               {location && <span className="md:hidden"><br />{location}</span>}
@@ -79,7 +96,11 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
             </div>
             <div className="hidden md:block md:col-span-2 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{location}</div>
             <div className="w-24 flex-shrink-0 md:w-auto md:col-start-11 md:col-span-2 py-[2px] self-stretch">
-              {thumbnailUrl && (
+              {thumbnailVideoUrl ? (
+                <div className="relative w-full h-full">
+                  <ThumbnailVideo src={thumbnailVideoUrl} />
+                </div>
+              ) : thumbnailUrl ? (
                 <div className="relative w-full h-full">
                   <Image
                     src={thumbnailUrl}
@@ -89,7 +110,7 @@ export default function ProjectsList({ projects, locale }: ProjectsListProps) {
                     sizes="10vw"
                   />
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         )
