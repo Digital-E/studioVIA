@@ -75,7 +75,9 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
       {rows.map(({ project, year, isNewYear }, i) => {
         const title = locale === 'de' ? project.title?.de : (project.title?.en ?? project.title?.de)
         const location = locale === 'de' ? project.location?.de : (project.location?.en ?? project.location?.de)
-        const prize = locale === 'de' ? project.prize?.de : (project.prize?.en ?? project.prize?.de)
+        const information1 = locale === 'de' ? project.information1?.de : (project.information1?.en ?? project.information1?.de)
+        const information2 = locale === 'de' ? project.information2?.de : (project.information2?.en ?? project.information2?.de)
+        const information3 = locale === 'de' ? project.information3?.de : (project.information3?.en ?? project.information3?.de)
 
         const thumbnailVideoUrl = project.thumbnailVideo?.asset?.url
         const thumbnailUrl = project.thumbnail
@@ -94,7 +96,9 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
             <div className="flex-1 md:col-span-5 font-build text-[1rem] md:text-3xl leading-none pl-4 md:pl-0 pr-4 md:pr-6 py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">
               <span className="font-medium">{title}</span>
               {location && <span className="md:hidden"><br />{location}</span>}
-              {prize && <><br /><span>{prize}</span></>}
+              {information1 && <><br /><span>{information1}</span></>}
+              {information2 && <><br /><span>{information2}</span></>}
+              {information3 && <><br /><span>{information3}</span></>}
             </div>
             <div className="hidden md:block md:col-span-2 font-build text-3xl leading-none py-[0.9rem] group-hover:text-via-gray">{location}</div>
             <div className="w-24 flex-shrink-0 md:w-auto md:col-start-11 md:col-span-2 py-[2px] self-stretch">

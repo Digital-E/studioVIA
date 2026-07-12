@@ -23,7 +23,9 @@ export const projectsListQuery = `
     slug,
     year,
     location,
-    prize,
+    information1,
+    information2,
+    information3,
     thumbnail { asset-> },
     thumbnailVideo { asset-> },
   }
@@ -38,7 +40,9 @@ export const allProjectsPageQuery = `
         title,
         slug,
         location,
-        prize,
+        information1,
+        information2,
+        information3,
         thumbnail { asset-> },
         thumbnailVideo { asset-> },
       }
@@ -53,7 +57,9 @@ export const projectQuery = `
     slug,
     year,
     location,
-    prize,
+    information1,
+    information2,
+    information3,
     slides[] {
       _key,
       _type,

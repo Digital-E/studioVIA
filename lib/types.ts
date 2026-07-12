@@ -67,7 +67,9 @@ export interface Project {
   slug: { current: string }
   year?: string
   location: LocalizedString
-  prize?: LocalizedString
+  information1?: LocalizedString
+  information2?: LocalizedString
+  information3?: LocalizedString
   thumbnail?: SanityImageRef
   thumbnailVideo?: SanityFileRef
   slides?: Slide[]

@@ -83,12 +83,30 @@ export const projectSchema = defineType({
       ],
     }),
     defineField({
-      name: 'prize',
+      name: 'information1',
       type: 'object',
-      title: 'Prize (optional)',
+      title: 'Information 1',
       fields: [
-        defineField({ name: 'de', type: 'string', title: 'German (e.g. 1. Preis)' }),
-        defineField({ name: 'en', type: 'string', title: 'English (e.g. 1st Prize)' }),
+        defineField({ name: 'de', type: 'string', title: 'German' }),
+        defineField({ name: 'en', type: 'string', title: 'English' }),
+      ],
+    }),
+    defineField({
+      name: 'information2',
+      type: 'object',
+      title: 'Information 2',
+      fields: [
+        defineField({ name: 'de', type: 'string', title: 'German' }),
+        defineField({ name: 'en', type: 'string', title: 'English' }),
+      ],
+    }),
+    defineField({
+      name: 'information3',
+      type: 'object',
+      title: 'Information 3',
+      fields: [
+        defineField({ name: 'de', type: 'string', title: 'German' }),
+        defineField({ name: 'en', type: 'string', title: 'English' }),
       ],
     }),
     defineField({ name: 'thumbnail', type: 'image', title: 'List thumbnail', options: { hotspot: true } }),
