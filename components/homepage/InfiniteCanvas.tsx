@@ -17,6 +17,16 @@ const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
 const JITTER_MULT     = 0.55  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe). Kept well under 1 (not just <1) so items stay near their cell center rather than roaming to the far edge, which is what was reading as big empty gaps between neighbors.
 const BACKDROP_BLEED  = 60    // px each per-tile blend backdrop rect extends past its own tile bounds, so content spilling past a tile edge (e.g. a credit caption below its image) still lands on a painted backdrop instead of a seam
+// Padding added to the item count fed into computeTileGrid, purely so the
+// grid always has a few cells to spare for the center-text reservation in
+// placeVariant (see CENTER_CLEAR_HALF_W/H there). Without this, a grid sized
+// exactly to the item count can leave too few free cells to reserve, so the
+// reservation silently gives up rather than dropping real content — the
+// exact case at today's item count (11 items -> a 4x3 grid has no slack).
+// The unused padding elsewhere (variants 1-15, and any cells the reservation
+// doesn't end up needing) is simply absorbed by the existing repeat-filler
+// mechanism, the same as any other leftover cell.
+const CENTER_RESERVE_PAD_CELLS = 4
 
 // Below this viewport width, tiles render smaller (see MOBILE_SCALE) — desktop is unaffected.
 const MOBILE_BREAKPOINT = 768
@@ -158,6 +168,10 @@ function itemAspect(item: CanvasItemType): number {
 
 interface Placed {
   key: string
+  // the real underlying item this placement renders — equal to `key` for a
+  // normal placement, but distinct when this slot is a repeat (see the
+  // "filler" pass in placeVariant) filling a grid cell no real item reached
+  itemKey: string
   isPostit: boolean
   isImage: boolean
   w: number; h: number
@@ -248,14 +262,109 @@ function placeVariant(
     return rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
   })
 
+  // Variant 0's dead-center cells are kept permanently empty. Panning starts
+  // at offset (0,0), which puts tile (0,0) — always variant 0, see
+  // tileVariant — directly behind the fixed, centered "Studio VIA" text
+  // overlay (see the InfiniteCanvas render below), so reserving this zone
+  // here, before any item or filler claims it, guarantees no photo (or
+  // postit) ever loads underneath that text on the very first screen.
+  // Scoped to variant 0 only (not every variant) — reserving the same
+  // relative cells everywhere would leave an identical blank hole in every
+  // tile, which reads as a repeating grid artifact once you pan away,
+  // defeating the whole point of the per-variant randomization.
+  //
+  // This is a rectangle sized to the text block, not a single cell: when
+  // cols or rows is even (as with cols=4 at today's item count), the tile's
+  // exact numeric center falls precisely on the boundary between two cells,
+  // not inside either one. Reserving only whichever single cell floor(cols/2)
+  // picks leaves its neighbor across that boundary completely unreserved —
+  // and the text is center-aligned, so it extends into that neighbor too.
+  // Intersecting a real rectangle against every cell instead reserves
+  // however many cells the text actually spans (1, 2, or 4, depending on
+  // parity), so nothing can jitter up to the boundary and still clip it.
+  const CENTER_CLEAR_HALF_W = defaultW * 0.7
+  const CENTER_CLEAR_HALF_H = defaultW * 0.55
+  const clearLeft = tileW / 2 - CENTER_CLEAR_HALF_W
+  const clearRight = tileW / 2 + CENTER_CLEAR_HALF_W
+  const clearTop = tileH / 2 - CENTER_CLEAR_HALF_H
+  const clearBottom = tileH / 2 + CENTER_CLEAR_HALF_H
+  const cellIntersectsClearZone = (idx: number) => {
+    const col = idx % cols, row = Math.floor(idx / cols)
+    const left = edgeMargin + col * cellW, right = left + cellW
+    const top = edgeMargin + row * cellH, bottom = top + cellH
+    return left < clearRight && right > clearLeft && top < clearBottom && bottom > clearTop
+  }
+  const reservedCellIndices = variant === 0 ? new Set(cellIndices.filter(cellIntersectsClearZone)) : new Set<number>()
+  // Only reserve if there's still a cell for every real (non-filler) item
+  // without them — with very few items in the CMS, losing cells to the
+  // reservation could otherwise mean dropping real content, which is worse
+  // than the text briefly sitting over a tile.
+  const canReserveCenter = cellIndices.length - reservedCellIndices.size >= shuffled.length
+  const fillableCellIndices = canReserveCenter
+    ? cellIndices.filter((idx) => !reservedCellIndices.has(idx))
+    : cellIndices
+
+  // A grid sized from cols/rows targeting an aspect ratio can leave more
+  // cells than items — e.g. 11 items is prime, so the only zero-leftover
+  // grids are a degenerate 1x11 or 11x1 strip (see computeTileGrid). Rather
+  // than leave those cells fully empty (a hole exactly the size of a cell —
+  // the "huge white area" this whole layout is built to avoid), repeat
+  // non-postit items to fill them. A repeated photo reads as an intentional
+  // collage choice; a blank hole reads as a bug. Postits are excluded from
+  // the repeat pool since there's normally exactly one — two identical
+  // "1st Prize" cards in the same tile would look like a glitch, not a
+  // repeat. Each slot gets its own placementKey (distinct from the item's
+  // real _key) so its size/jitter is independently randomized rather than
+  // mirroring the item's original placement, and so the final layout Map
+  // (keyed by placementKey below) can hold both without colliding.
+  const fillPool = items.filter((it) => it._type !== 'canvasPostit')
+    .sort((a, b) => rand(seed + a._key + ':fill:v' + variant, 0) - rand(seed + b._key + ':fill:v' + variant, 0))
+  const numExtra = Math.max(0, fillableCellIndices.length - shuffled.length)
+  const slots: { item: CanvasItemType; placementKey: string }[] = [
+    ...shuffled.map((item) => ({ item, placementKey: item._key })),
+    ...(fillPool.length > 0
+      ? Array.from({ length: numExtra }, (_, i) => ({
+          item: fillPool[i % fillPool.length],
+          placementKey: fillPool[i % fillPool.length]._key + ':fill' + i,
+        }))
+      : []),
+  ]
+
+  // Assigns each slot's cell on demand (rather than a fixed 1:1 zip against
+  // fillableCellIndices) so a repeated item's filler copy can be steered
+  // away from any cell already holding that same item — including its own
+  // original placement. Two occurrences of the same photo landing in
+  // touching cells reads as an obvious mistake, not an intentional repeat,
+  // so "already holding" also excludes the 8 neighboring cells, not just an
+  // exact match. Distinct items never conflict with each other here, so
+  // this reduces to the previous fixed-order assignment for every item that
+  // only appears once (i.e. every real item, unless it's also the fill
+  // pool's source for a repeat).
+  const remainingCells = [...fillableCellIndices]
+  const usedCellsByItemKey = new Map<string, number[]>()
+  const cellsAreNear = (a: number, b: number) => {
+    const ca = a % cols, ra = Math.floor(a / cols)
+    const cb = b % cols, rb = Math.floor(b / cols)
+    return Math.abs(ca - cb) <= 1 && Math.abs(ra - rb) <= 1
+  }
+  const pickCellFor = (itemKey: string): number => {
+    const used = usedCellsByItemKey.get(itemKey) ?? []
+    let pickAt = remainingCells.findIndex((c) => !used.some((u) => cellsAreNear(c, u)))
+    if (pickAt === -1) pickAt = 0 // no conflict-free cell left — take the next one anyway rather than fail
+    const cellIndex = remainingCells.splice(pickAt, 1)[0]
+    used.push(cellIndex)
+    usedCellsByItemKey.set(itemKey, used)
+    return cellIndex
+  }
+
   // ── pass 1: assign each item's cell, size, and base (unjittered) center ────
   const placed: Placed[] = []
   const cellToPlacedIndex = new Map<number, number>()
 
-  shuffled.forEach((item, i) => {
+  slots.forEach(({ item, placementKey }) => {
     const sizeTier = item._type === 'canvasPostit'
       ? POSTIT_SIZE
-      : SIZE_TIERS[Math.floor(rand(seed + item._key + ':size:v' + variant, 0) * SIZE_TIERS.length)]
+      : SIZE_TIERS[Math.floor(rand(seed + placementKey + ':size:v' + variant, 0) * SIZE_TIERS.length)]
     let w = Math.round(defaultW * sizeTier)
     let h = Math.round(w / itemAspect(item))
 
@@ -269,7 +378,7 @@ function placeVariant(
       h = Math.round(h * scale)
     }
 
-    const cellIndex = cellIndices[i]
+    const cellIndex = pickCellFor(item._key)
     const col = cellIndex % cols
     const row = Math.floor(cellIndex / cols)
     const baseCX = edgeMargin + (col + 0.5) * cellW
@@ -277,7 +386,8 @@ function placeVariant(
 
     cellToPlacedIndex.set(cellIndex, placed.length)
     placed.push({
-      key: item._key,
+      key: placementKey,
+      itemKey: item._key,
       isPostit: item._type === 'canvasPostit',
       isImage: item._type === 'canvasMedia' && !!item.image && !item.video,
       w, h, col, row,
@@ -379,7 +489,7 @@ function buildAllLayouts(
   seed: string,
   grid: { cols: number; rows: number; tileW: number; tileH: number },
   c: SizeConstants,
-): Map<string, { x: number; y: number; w: number; h: number }>[] {
+): Map<string, { x: number; y: number; w: number; h: number; itemKey: string }>[] {
   if (items.length === 0) return Array.from({ length: N_VARIANTS }, () => new Map())
 
   const { tileW, tileH } = grid
@@ -561,14 +671,67 @@ function buildAllLayouts(
     if (!changed) break
   }
 
+  // Cap how many neighbors a single item can simultaneously overlap at 1.
+  // The checks above only forbid a single pair exceeding MAX_OVERLAP_FRAC or
+  // a literal 3-way common intersection point — neither stops item B from
+  // overlapping A on one side and C on the other (a "chain" where no single
+  // point is shared by all three), which still reads as a cluster of 3+
+  // overlapping tiles. Shrinking the offending item's own t toward its safe
+  // t=0 cell center (not its neighbors') can only ever reduce — never
+  // increase — how much it, or anyone measuring against it, overlaps, so
+  // this can't undo the resolution above or introduce new violations.
+  const adjacency = new Map<number, { other: Ref; dx: number; dy: number }[]>()
+  const addEdge = (ref: Ref, other: Ref, dx: number, dy: number) => {
+    const k = ord(ref)
+    if (!adjacency.has(k)) adjacency.set(k, [])
+    adjacency.get(k)!.push({ other, dx, dy })
+  }
+  for (const { a, b, dx, dy } of pairs) {
+    addEdge(a, b, dx, dy)
+    addEdge(b, a, -dx, -dy)
+  }
+  const refOf = new Map<number, Ref>()
+  for (let v = 0; v < N_VARIANTS; v++) {
+    allPlaced[v].forEach((_, i) => refOf.set(ord({ v, i }), { v, i }))
+  }
+
+  const overlapDegree = (ref: Ref) => {
+    const P = getPlaced(ref)
+    let count = 0
+    for (const e of adjacency.get(ord(ref)) ?? []) {
+      if (overlapFrac(P, getPlaced(e.other), e.dx, e.dy) > 0) count++
+    }
+    return count
+  }
+
+  for (let iter = 0; iter < 40; iter++) {
+    let changed = false
+    for (const k of adjacency.keys()) {
+      const ref = refOf.get(k)!
+      if (overlapDegree(ref) <= 1) continue
+      const P = getPlaced(ref)
+      const base = P.t
+      let lo = 0, hi = base
+      for (let i = 0; i < 25; i++) {
+        const mid = (lo + hi) / 2
+        P.t = mid
+        if (overlapDegree(ref) > 1) hi = mid; else lo = mid
+      }
+      P.t = lo
+      changed = true
+    }
+    if (!changed) break
+  }
+
   return allPlaced.map((placed) => {
-    const map = new Map<string, { x: number; y: number; w: number; h: number }>()
+    const map = new Map<string, { x: number; y: number; w: number; h: number; itemKey: string }>()
     placed.forEach((p) => {
       map.set(p.key, {
         x: p.baseCX + p.offX * p.t - p.w / 2 - tileW / 2,
         y: p.baseCY + p.offY * p.t - p.h / 2 - tileH / 2,
         w: p.w,
         h: p.h,
+        itemKey: p.itemKey,
       })
     })
     return map
@@ -872,12 +1035,23 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   // Grid dimensions (and so tile size) scale with item count so items always
   // render at full defaultW — rather than shrinking items to fit a
   // fixed-size tile, the tile grows to fit however many items there are.
-  const grid = useMemo(() => computeTileGrid(items.length, sizeConstants), [items.length, sizeConstants])
+  // Padded by CENTER_RESERVE_PAD_CELLS so there's always slack left over for
+  // the center-text reservation in placeVariant.
+  const grid = useMemo(
+    () => computeTileGrid(items.length + CENTER_RESERVE_PAD_CELLS, sizeConstants),
+    [items.length, sizeConstants]
+  )
 
   const layouts = useMemo(
     () => seed !== null ? buildAllLayouts(items, seed, grid, sizeConstants) : [],
     [items, seed, grid, sizeConstants]
   )
+
+  // A layout placement's key isn't always an item's own _key — a grid cell
+  // left over with no item to fill it (see the "filler" pass in
+  // placeVariant) gets a repeated item under a synthetic key — so look the
+  // real item up by its itemKey rather than assuming placementKey === _key.
+  const itemsByKey = useMemo(() => new Map(items.map((it) => [it._key, it])), [items])
 
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
@@ -954,13 +1128,13 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                   background: 'white',
                 }}
               />
-              {items.map((item) => {
-                const pos = layout.get(item._key)
-                if (!pos) return null
+              {Array.from(layout.entries()).map(([placementKey, pos]) => {
+                const item = itemsByKey.get(pos.itemKey)
+                if (!item) return null
                 return (
                   <div
-                    key={item._key}
-                    data-ci={item._key}
+                    key={placementKey}
+                    data-ci={placementKey}
                     data-cw={pos.w}
                     data-ch={pos.h}
                     style={{

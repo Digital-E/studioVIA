@@ -29,7 +29,7 @@ export default async function ProjectPage({
   return (
     <main className="w-screen h-screen overflow-hidden bg-white">
       <Navigation locale={locale} activePage="projects" />
-      <div className="fixed top-0 left-0 right-0 z-[45] flex items-start justify-center pt-[1.35rem] pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 z-[45] flex items-start justify-center pt-[5rem] md:pt-[1.35rem] pointer-events-none">
         <h1 className="text-3xl leading-none max-w-[80%] font-build text-center md:max-w-md">{title}</h1>
       </div>
       <ProjectSlider slides={project.slides ?? []} locale={locale} />

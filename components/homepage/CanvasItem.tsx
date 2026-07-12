@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { urlFor } from '@/lib/sanity'
 import type { CanvasItem as CanvasItemType } from '@/lib/types'
 import PostIt from './PostIt'
-import { useVideoLazySrc } from './useVideoBlobSrc'
+import { useVideoBlobSrc } from './useVideoBlobSrc'
 
 const DEFAULT_WIDTH = 400
 
@@ -14,11 +14,11 @@ function ItemLink({ href, className, style, children }: { href: string | null; c
 }
 
 function CanvasVideo({ src, w, h }: { src: string; w: number; h: number }) {
-  const { ref, src: lazySrc } = useVideoLazySrc(src)
+  const { ref, blobUrl } = useVideoBlobSrc(src)
   return (
     <video
       ref={ref}
-      src={lazySrc}
+      src={blobUrl ?? undefined}
       autoPlay
       loop
       muted

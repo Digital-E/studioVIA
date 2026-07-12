@@ -16,7 +16,7 @@ export default async function StudioPage({
 
   return (
     <main className="w-screen h-screen overflow-hidden bg-white">
-      <Navigation locale={locale} activePage="studio" />
+      <Navigation locale={locale} activePage="studio" bottomGradient />
       <StudioContent data={data} locale={locale} />
     </main>
   )
