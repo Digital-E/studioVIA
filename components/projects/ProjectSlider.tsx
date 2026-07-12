@@ -240,16 +240,19 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
             {/* Credits column */}
             <div className="order-2 md:order-1">
-              {slide.credits?.map((credit) => (
-                <div key={credit._key} className="border-b border-black pb-0 pt-4 pb-4 first:pt-0">
-                  {credit.text && (
-                    <PortableText
-                      value={credit.text as Parameters<typeof PortableText>[0]['value']}
-                      components={creditComponents as any}
-                    />
-                  )}
-                </div>
-              ))}
+              {slide.credits?.map((credit) => {
+                const creditText = locale === 'de' ? credit.text?.de : (credit.text?.en ?? credit.text?.de)
+                return (
+                  <div key={credit._key} className="border-b border-black pb-0 pt-4 pb-4 first:pt-0">
+                    {creditText && (
+                      <PortableText
+                        value={creditText as Parameters<typeof PortableText>[0]['value']}
+                        components={creditComponents as any}
+                      />
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

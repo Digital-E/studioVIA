@@ -31,11 +31,13 @@ function ThumbnailVideo({ src }: { src: string }) {
 export default function ProjectsList({ years, locale }: ProjectsListProps) {
   const router = useRouter()
   const rows = years.flatMap((group) =>
-    (group.projects ?? []).map((project, idx) => ({
-      project,
-      year: group.year ?? '',
-      isNewYear: idx === 0,
-    }))
+    (group.projects ?? [])
+      .filter((project): project is NonNullable<typeof project> => project != null)
+      .map((project, idx) => ({
+        project,
+        year: group.year ?? '',
+        isNewYear: idx === 0,
+      }))
   )
   const [showGradient, setShowGradient] = useState(false)
 

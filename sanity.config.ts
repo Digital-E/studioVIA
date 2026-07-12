@@ -35,8 +35,47 @@ export default defineConfig({
     visionTool(),
     presentationTool({
       previewUrl: {
-        draftMode: {
+        previewMode: {
           enable: '/api/draft-mode/enable',
+        },
+      },
+      resolve: {
+        locations: {
+          homepage: {
+            locations: [
+              { title: 'Homepage (DE)', href: '/de' },
+              { title: 'Homepage (EN)', href: '/en' },
+            ],
+          },
+          studioPage: {
+            locations: [
+              { title: 'Studio Page (DE)', href: '/de/studio' },
+              { title: 'Studio Page (EN)', href: '/en/studio' },
+            ],
+          },
+          allProjectsPage: {
+            locations: [
+              { title: 'All Projects Page (DE)', href: '/de/projects' },
+              { title: 'All Projects Page (EN)', href: '/en/projects' },
+            ],
+          },
+          project: {
+            select: { title: 'title.de', slug: 'slug.current' },
+            resolve: (doc) => ({
+              locations: [
+                {
+                  title: `${doc?.title ?? 'Untitled project'} (DE)`,
+                  href: `/de/projects/${doc?.slug}`,
+                },
+                {
+                  title: `${doc?.title ?? 'Untitled project'} (EN)`,
+                  href: `/en/projects/${doc?.slug}`,
+                },
+                { title: 'All Projects Page (DE)', href: '/de/projects' },
+                { title: 'All Projects Page (EN)', href: '/en/projects' },
+              ],
+            }),
+          },
         },
       },
     }),

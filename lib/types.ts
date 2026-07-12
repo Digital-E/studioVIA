@@ -46,7 +46,7 @@ export interface HomepageData {
 
 export interface Credit {
   _key: string
-  text: unknown[]
+  text?: { de?: unknown[]; en?: unknown[] }
 }
 
 export interface Slide {

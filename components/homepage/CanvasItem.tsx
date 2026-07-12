@@ -50,7 +50,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
         <ItemLink href={href} className={href ? 'group block' : 'group'}>
           <CanvasVideo src={item.video.asset.url} w={w} h={h} />
           {item.credit && (
-            <p className="font-build text-lg text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+            <p className="font-build text-lg leading-none text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
         </ItemLink>
       )
@@ -71,7 +71,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
             priority
           />
           {item.credit && (
-            <p className="font-build text-lg text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
+            <p className="font-build text-lg leading-none text-via-black mt-1 text-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ width: w }}>{item.credit}</p>
           )}
         </ItemLink>
       )

@@ -31,7 +31,15 @@ const textSlide = defineArrayMember({
         type: 'object',
         name: 'credit',
         fields: [
-          defineField({ name: 'text', type: 'array', title: 'Text', of: [{ type: 'block' }] }),
+          defineField({
+            name: 'text',
+            type: 'object',
+            title: 'Text',
+            fields: [
+              defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
+              defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+            ],
+          }),
         ],
         preview: { prepare: () => ({ title: 'Credit' }) },
       })],

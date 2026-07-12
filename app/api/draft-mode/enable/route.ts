@@ -1,16 +1,6 @@
-import { draftMode } from 'next/headers'
-import { redirect } from 'next/navigation'
-import type { NextRequest } from 'next/server'
+import { defineEnableDraftMode } from 'next-sanity/draft-mode'
+import { client } from '@/lib/sanity'
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl
-  const secret = searchParams.get('secret')
-  const redirectTo = searchParams.get('redirect') ?? '/'
-
-  if (secret !== process.env.SANITY_PREVIEW_SECRET && process.env.NODE_ENV !== 'development') {
-    return new Response('Invalid token', { status: 401 })
-  }
-
-  ;(await draftMode()).enable()
-  redirect(redirectTo)
-}
+export const { GET } = defineEnableDraftMode({
+  client: client.withConfig({ token: process.env.SANITY_API_READ_TOKEN }),
+})
