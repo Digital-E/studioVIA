@@ -418,17 +418,48 @@
           {
             "name": "de",
             "type": "string",
-            "title": "German (e.g. 1. Preis)"
+            "title": "German"
           },
           {
             "name": "en",
             "type": "string",
-            "title": "English (e.g. 1st Prize)"
+            "title": "English"
           }
         ],
-        "name": "prize",
-        "type": "object",
-        "title": "Prize (optional)"
+        "name": "information1",
+        "type": "object"
+      },
+      {
+        "fields": [
+          {
+            "name": "de",
+            "type": "string",
+            "title": "German"
+          },
+          {
+            "name": "en",
+            "type": "string",
+            "title": "English"
+          }
+        ],
+        "name": "information2",
+        "type": "object"
+      },
+      {
+        "fields": [
+          {
+            "name": "de",
+            "type": "string",
+            "title": "German"
+          },
+          {
+            "name": "en",
+            "type": "string",
+            "title": "English"
+          }
+        ],
+        "name": "information3",
+        "type": "object"
       },
       {
         "options": {
@@ -496,125 +527,254 @@
                   {
                     "fields": [
                       {
-                        "of": [
+                        "fields": [
                           {
-                            "marks": {
-                              "annotations": [
-                                {
-                                  "i18nTitleKey": "inputs.portable-text.annotation.link",
-                                  "options": {
-                                    "modal": {
-                                      "type": "popover"
-                                    }
-                                  },
-                                  "fields": [
+                            "of": [
+                              {
+                                "marks": {
+                                  "annotations": [
                                     {
-                                      "validation": [
+                                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                                      "options": {
+                                        "modal": {
+                                          "type": "popover"
+                                        }
+                                      },
+                                      "fields": [
                                         {
-                                          "rules": [
+                                          "validation": [
                                             {
-                                              "flag": "uri",
-                                              "constraint": {
-                                                "options": {
-                                                  "scheme": [
-                                                    "/^http$/",
-                                                    "/^https$/",
-                                                    "/^tel$/",
-                                                    "/^mailto$/"
-                                                  ],
-                                                  "allowRelative": true,
-                                                  "relativeOnly": false,
-                                                  "allowCredentials": false
+                                              "rules": [
+                                                {
+                                                  "flag": "uri",
+                                                  "constraint": {
+                                                    "options": {
+                                                      "scheme": [
+                                                        "/^http$/",
+                                                        "/^https$/",
+                                                        "/^tel$/",
+                                                        "/^mailto$/"
+                                                      ],
+                                                      "allowRelative": true,
+                                                      "relativeOnly": false,
+                                                      "allowCredentials": false
+                                                    }
+                                                  }
                                                 }
-                                              }
+                                              ],
+                                              "level": "error"
                                             }
                                           ],
-                                          "level": "error"
+                                          "description": "A valid web, email, phone, or relative link.",
+                                          "name": "href",
+                                          "type": "url",
+                                          "title": "Link"
                                         }
                                       ],
-                                      "description": "A valid web, email, phone, or relative link.",
-                                      "name": "href",
-                                      "type": "url",
-                                      "title": "Link"
+                                      "name": "link",
+                                      "type": "object"
                                     }
                                   ],
-                                  "name": "link",
-                                  "type": "object"
-                                }
-                              ],
-                              "decorators": [
-                                {
-                                  "value": "strong",
-                                  "title": "Strong"
+                                  "decorators": [
+                                    {
+                                      "value": "strong",
+                                      "title": "Strong"
+                                    },
+                                    {
+                                      "value": "em",
+                                      "title": "Italic"
+                                    },
+                                    {
+                                      "value": "code",
+                                      "title": "Code"
+                                    },
+                                    {
+                                      "value": "underline",
+                                      "title": "Underline"
+                                    },
+                                    {
+                                      "value": "strike-through",
+                                      "title": "Strike"
+                                    }
+                                  ]
                                 },
-                                {
-                                  "value": "em",
-                                  "title": "Italic"
-                                },
-                                {
-                                  "value": "code",
-                                  "title": "Code"
-                                },
-                                {
-                                  "value": "underline",
-                                  "title": "Underline"
-                                },
-                                {
-                                  "value": "strike-through",
-                                  "title": "Strike"
-                                }
-                              ]
-                            },
-                            "lists": [
-                              {
-                                "value": "bullet",
-                                "title": "Bulleted list"
-                              },
-                              {
-                                "value": "number",
-                                "title": "Numbered list"
+                                "lists": [
+                                  {
+                                    "value": "bullet",
+                                    "title": "Bulleted list"
+                                  },
+                                  {
+                                    "value": "number",
+                                    "title": "Numbered list"
+                                  }
+                                ],
+                                "styles": [
+                                  {
+                                    "value": "normal",
+                                    "title": "Normal"
+                                  },
+                                  {
+                                    "value": "h1",
+                                    "title": "Heading 1"
+                                  },
+                                  {
+                                    "value": "h2",
+                                    "title": "Heading 2"
+                                  },
+                                  {
+                                    "value": "h3",
+                                    "title": "Heading 3"
+                                  },
+                                  {
+                                    "value": "h4",
+                                    "title": "Heading 4"
+                                  },
+                                  {
+                                    "value": "h5",
+                                    "title": "Heading 5"
+                                  },
+                                  {
+                                    "value": "h6",
+                                    "title": "Heading 6"
+                                  },
+                                  {
+                                    "value": "blockquote",
+                                    "title": "Quote"
+                                  }
+                                ],
+                                "of": [],
+                                "type": "block"
                               }
                             ],
-                            "styles": [
+                            "name": "de",
+                            "type": "array",
+                            "title": "German"
+                          },
+                          {
+                            "of": [
                               {
-                                "value": "normal",
-                                "title": "Normal"
-                              },
-                              {
-                                "value": "h1",
-                                "title": "Heading 1"
-                              },
-                              {
-                                "value": "h2",
-                                "title": "Heading 2"
-                              },
-                              {
-                                "value": "h3",
-                                "title": "Heading 3"
-                              },
-                              {
-                                "value": "h4",
-                                "title": "Heading 4"
-                              },
-                              {
-                                "value": "h5",
-                                "title": "Heading 5"
-                              },
-                              {
-                                "value": "h6",
-                                "title": "Heading 6"
-                              },
-                              {
-                                "value": "blockquote",
-                                "title": "Quote"
+                                "marks": {
+                                  "annotations": [
+                                    {
+                                      "i18nTitleKey": "inputs.portable-text.annotation.link",
+                                      "options": {
+                                        "modal": {
+                                          "type": "popover"
+                                        }
+                                      },
+                                      "fields": [
+                                        {
+                                          "validation": [
+                                            {
+                                              "rules": [
+                                                {
+                                                  "flag": "uri",
+                                                  "constraint": {
+                                                    "options": {
+                                                      "scheme": [
+                                                        "/^http$/",
+                                                        "/^https$/",
+                                                        "/^tel$/",
+                                                        "/^mailto$/"
+                                                      ],
+                                                      "allowRelative": true,
+                                                      "relativeOnly": false,
+                                                      "allowCredentials": false
+                                                    }
+                                                  }
+                                                }
+                                              ],
+                                              "level": "error"
+                                            }
+                                          ],
+                                          "description": "A valid web, email, phone, or relative link.",
+                                          "name": "href",
+                                          "type": "url",
+                                          "title": "Link"
+                                        }
+                                      ],
+                                      "name": "link",
+                                      "type": "object"
+                                    }
+                                  ],
+                                  "decorators": [
+                                    {
+                                      "value": "strong",
+                                      "title": "Strong"
+                                    },
+                                    {
+                                      "value": "em",
+                                      "title": "Italic"
+                                    },
+                                    {
+                                      "value": "code",
+                                      "title": "Code"
+                                    },
+                                    {
+                                      "value": "underline",
+                                      "title": "Underline"
+                                    },
+                                    {
+                                      "value": "strike-through",
+                                      "title": "Strike"
+                                    }
+                                  ]
+                                },
+                                "lists": [
+                                  {
+                                    "value": "bullet",
+                                    "title": "Bulleted list"
+                                  },
+                                  {
+                                    "value": "number",
+                                    "title": "Numbered list"
+                                  }
+                                ],
+                                "styles": [
+                                  {
+                                    "value": "normal",
+                                    "title": "Normal"
+                                  },
+                                  {
+                                    "value": "h1",
+                                    "title": "Heading 1"
+                                  },
+                                  {
+                                    "value": "h2",
+                                    "title": "Heading 2"
+                                  },
+                                  {
+                                    "value": "h3",
+                                    "title": "Heading 3"
+                                  },
+                                  {
+                                    "value": "h4",
+                                    "title": "Heading 4"
+                                  },
+                                  {
+                                    "value": "h5",
+                                    "title": "Heading 5"
+                                  },
+                                  {
+                                    "value": "h6",
+                                    "title": "Heading 6"
+                                  },
+                                  {
+                                    "value": "blockquote",
+                                    "title": "Quote"
+                                  }
+                                ],
+                                "of": [],
+                                "type": "block"
                               }
                             ],
-                            "of": [],
-                            "type": "block"
+                            "name": "en",
+                            "type": "array",
+                            "title": "English"
                           }
                         ],
                         "name": "text",
-                        "type": "array"
+                        "type": "object"
                       }
                     ],
                     "type": "object",

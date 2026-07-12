@@ -5,6 +5,7 @@ import { routing } from '@/i18n/routing'
 import { draftMode } from 'next/headers'
 import { VisualEditing } from 'next-sanity'
 import LocaleHtml from '@/components/LocaleHtml'
+import DraftModeBanner from '@/components/DraftModeBanner'
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
@@ -28,6 +29,7 @@ export default async function LocaleLayout({
       <LocaleHtml locale={locale} />
       {children}
       {isDraft && <VisualEditing />}
+      {isDraft && <DraftModeBanner />}
     </NextIntlClientProvider>
   )
 }
