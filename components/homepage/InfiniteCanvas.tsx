@@ -1,8 +1,46 @@
 'use client'
-import { useRef, useState, useCallback, useMemo, useEffect, Fragment } from 'react'
+import { useRef, useState, useCallback, useMemo, useEffect, useLayoutEffect, Fragment } from 'react'
 import Link from 'next/link'
 import type { CanvasItem as CanvasItemType, LocalizedString } from '@/lib/types'
 import CanvasItem from './CanvasItem'
+
+// ─── load-in reveal timing ────────────────────────────────────────────────────
+// Cascade: ready -> (TEXT_REVEAL_DELAY_MS) -> center text fades in
+//        -> (TILES_REVEAL_DELAY_MS) -> tiles start staggering in
+//        -> (TILE_STAGGER_MAX_MS + TILE_TRANSITION_MS) -> every tile has appeared
+const TEXT_REVEAL_DELAY_MS  = 600  // pause after layout is ready, before the title starts fading in
+const TILES_REVEAL_DELAY_MS = 450  // pause after the title starts fading in, before tiles begin
+const TILE_STAGGER_MAX_MS   = 1000  // widest per-tile random delay within the stagger
+const TILE_TRANSITION_MS    = 500  // each tile's own fade/slide-up duration
+// On a repeat visit this session, tiles exist in the DOM for the first time
+// only once layout/seed are ready (nothing can be server-rendered — their
+// position depends on a client-generated seed), so they'd otherwise jump
+// from "0 tiles in the DOM" straight to "all tiles at opacity 1" in a single
+// frame. A short, uniform (no stagger, no per-item delay) fade smooths that
+// without replaying the full first-load stagger.
+const REPEAT_VISIT_TILE_FADE_MS = 150
+// Total time from `ready` until every tile has finished appearing — imported
+// by Navigation.tsx so the nav bars' own fade-in can start right after the
+// tile reveal is done, without needing a live signal between the two
+// components (they're unrelated siblings under the homepage's server component).
+export const HOME_TILES_REVEAL_TOTAL_MS =
+  TEXT_REVEAL_DELAY_MS + TILES_REVEAL_DELAY_MS + TILE_STAGGER_MAX_MS + TILE_TRANSITION_MS
+
+// The whole reveal (text + tile stagger + nav fade-in) plays only once per
+// browser session — set the moment it starts, so navigating back to the
+// homepage later in the same session (e.g. from /projects) shows everything
+// at full opacity immediately instead of replaying the animation. Exported,
+// along with the check below, so Navigation.tsx can use the same check
+// independent of this component's own state.
+export const HOME_REVEAL_SESSION_KEY = 'studiovia:homeRevealed'
+
+export function hasRevealedThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(HOME_REVEAL_SESSION_KEY) === '1'
+  } catch {
+    return false // sessionStorage can throw in some private-browsing modes
+  }
+}
 
 // ─── layout constants ─────────────────────────────────────────────────────────
 
@@ -764,6 +802,37 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const [offset, setOffset]     = useState({ x: 0, y: 0 })
   const [viewSize, setViewSize] = useState({ w: 1440, h: 900 })
   const [ready, setReady]       = useState(false)
+  // Center text waits a beat after `ready` before it starts fading in, rather
+  // than firing the instant layout is measured — gives the reveal a distinct
+  // "title first" beat instead of appearing the moment the page is ready.
+  const [textRevealed, setTextRevealed] = useState(false)
+  // Tiles stagger in only after the center text has had time to fade in —
+  // set once, after textRevealed's own fade finishes, rather than tied to
+  // `ready` directly, so the two reveals read as sequential instead of
+  // simultaneous (and shift automatically if the text delay above changes).
+  const [tilesRevealed, setTilesRevealed] = useState(false)
+  // Once the reveal transition has fully played out, stop giving tile items
+  // their own `transform`/`transition` styles at all — each one otherwise
+  // creates its own stacking/compositor layer, which is fine for a couple of
+  // seconds on load but makes ordinary panning (which moves everything via a
+  // single transform on `innerRef`) noticeably less smooth afterward.
+  const [staggerSettled, setStaggerSettled] = useState(false)
+  // Already played this session — tiles still get a short, uniform fade (see
+  // REPEAT_VISIT_TILE_FADE_MS) rather than the full first-load stagger, so
+  // this tracks which of the two the per-item styles below should use.
+  const [isRepeatVisit, setIsRepeatVisit] = useState(false)
+
+  // Already played this session — skip straight to text visible, in a
+  // *layout* effect (before paint) so the text itself never shows an
+  // invisible frame. Tiles are deliberately left alone here (see the effect
+  // below) — they still need one real paint of their initial, invisible
+  // state for the short fade to have something to visibly transition from.
+  useLayoutEffect(() => {
+    if (hasRevealedThisSession()) {
+      setIsRepeatVisit(true)
+      setTextRevealed(true)
+    }
+  }, [])
 
   const containerRef  = useRef<HTMLDivElement>(null)
   const innerRef      = useRef<HTMLDivElement>(null)
@@ -1003,7 +1072,14 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   }, [cancelAnim, startLerp])
 
   // ── viewport size ─────────────────────────────────────────────────────────
-  useEffect(() => {
+  // Layout effect, not a regular effect: `ready` gates the whole tile layer's
+  // visibility (opacity, no transition — see innerRef below), so it has to
+  // resolve before the first paint. A regular effect fires after that first
+  // paint has already happened, so the layer would render hidden, then pop
+  // to visible a moment later — invisible on a first-time visit (tiles are
+  // still individually hidden underneath anyway) but a plain flash on a
+  // repeat visit, where the per-tile animation is skipped entirely.
+  useLayoutEffect(() => {
     const update = () => {
       const w = window.innerWidth, h = window.innerHeight
       viewSizeRef.current = { w, h }
@@ -1013,17 +1089,64 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     }
     update()
     setReady(true)
+
+    // First time this session — mark it so the layout effect above skips
+    // the reveal on any later mount (e.g. a reload) within the same session.
+    if (!hasRevealedThisSession()) {
+      try { sessionStorage.setItem(HOME_REVEAL_SESSION_KEY, '1') } catch {}
+    }
+
     window.addEventListener('resize', update)
     return () => { window.removeEventListener('resize', update); cancelAnim() }
   }, [applyTransform, cancelAnim])
 
+  // Hold the center text at opacity 0 for a beat after `ready` before
+  // starting its own 0.6s fade-in (see the title's style below).
+  useEffect(() => {
+    if (!ready) return
+    const t = setTimeout(() => setTextRevealed(true), TEXT_REVEAL_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [ready])
+
+  // Kick off the tile stagger once the center text's own fade-in (0.6s) is
+  // mostly done, so the two reveals read as sequential rather than at once.
+  // On a repeat visit, skip that wait — but still flip it from a *regular*
+  // (post-paint) effect, not alongside textRevealed in the layout effect
+  // above: tiles need one real paint of their invisible starting state for
+  // the short fade to actually be visible, rather than being born already
+  // at full opacity with nothing to transition from.
+  useEffect(() => {
+    if (!textRevealed) return
+    if (isRepeatVisit) { setTilesRevealed(true); return }
+    const t = setTimeout(() => setTilesRevealed(true), TILES_REVEAL_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [textRevealed, isRepeatVisit])
+
+  // Settle once every tile has definitely finished its transition — the
+  // longest possible span is TILE_STAGGER_MAX_MS + TILE_TRANSITION_MS on a
+  // first-load stagger, or just REPEAT_VISIT_TILE_FADE_MS on a repeat visit's
+  // short uniform fade.
+  useEffect(() => {
+    if (!tilesRevealed) return
+    const settleDelay = isRepeatVisit
+      ? REPEAT_VISIT_TILE_FADE_MS + 100
+      : TILE_STAGGER_MAX_MS + TILE_TRANSITION_MS + 100
+    const t = setTimeout(() => setStaggerSettled(true), settleDelay)
+    return () => clearTimeout(t)
+  }, [tilesRevealed, isRepeatVisit])
+
   // ── render ────────────────────────────────────────────────────────────────
   // Seed must be generated client-side only — Math.random() on the server
   // produces a different value than on the client, causing a hydration mismatch.
-  // useState(null) SSRs as null on both server and client (no mismatch),
-  // then useEffect sets the real seed after hydration.
+  // useState(null) SSRs as null on both server and client (no mismatch), then
+  // an effect sets the real seed after hydration. A *layout* effect, not a
+  // regular one — no tile renders at all until seed is set (see `seed !==
+  // null` below), so resolving it after the first paint means every tile
+  // blips into existence a frame later, all at once. Layout effects still
+  // only ever run client-side (same anti-mismatch guarantee), just before
+  // paint instead of after.
   const [seed, setSeed] = useState<string | null>(null)
-  useEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
+  useLayoutEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
 
   // Below MOBILE_BREAKPOINT, tiles render at MOBILE_SCALE — desktop keeps
   // DEFAULT_W untouched. Tracked as a boolean (not raw width) so the heavy
@@ -1070,7 +1193,10 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10  mix-blend-difference text-white">
+      <div
+        className="fixed inset-0 flex items-center justify-center pointer-events-none z-10  mix-blend-difference text-white"
+        style={{ opacity: textRevealed ? 1 : 0, transition: 'opacity 0.6s ease' }}
+      >
         <div className="text-center">
           <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
             <span className="block font-build text-3xl leading-none">Studio</span>
@@ -1096,8 +1222,9 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
           left: 0,
           top: 0,
           willChange: 'transform',
+          // Instant, not transitioned — each item below fades in on its own,
+          // so this just avoids an initial flash before layout is measured.
           opacity: ready ? 1 : 0,
-          transition: 'opacity 0.6s ease',
         }}
       >
         {seed !== null && tiles.map(({ tx, ty }) => {
@@ -1131,6 +1258,12 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
               {Array.from(layout.entries()).map(([placementKey, pos]) => {
                 const item = itemsByKey.get(pos.itemKey)
                 if (!item) return null
+                // No per-item spread on a repeat visit — a short, uniform
+                // fade instead of replaying the full first-load stagger.
+                const staggerDelay = (staggerSettled || isRepeatVisit)
+                  ? 0
+                  : Math.round(rand(placementKey, 777) * TILE_STAGGER_MAX_MS)
+                const tileTransitionMs = isRepeatVisit ? REPEAT_VISIT_TILE_FADE_MS : TILE_TRANSITION_MS
                 return (
                   <div
                     key={placementKey}
@@ -1152,6 +1285,36 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       zIndex: item._type === 'canvasPostit'
                         ? 2_000_000_000
                         : 1_000_000_000 - Math.round(pos.w * pos.h),
+                      // GPU-composited transform, not a layout property like
+                      // `top` — smooth even with many tiles animating with
+                      // staggered delays at once. Stripped entirely once
+                      // staggerSettled (see below) so it doesn't linger on
+                      // elements that no longer need it.
+                      ...(staggerSettled ? null : {
+                        // Deterministic per-item delay (not random per
+                        // render) so a given tile always staggers the same
+                        // way. Tiles panned into view later — after
+                        // tilesRevealed is already true — mount straight at
+                        // full opacity (see above), so this only ever plays
+                        // out once, for the initial reveal.
+                        opacity: tilesRevealed ? 1 : 0,
+                        // No slide-up on a repeat visit — just the short
+                        // opacity fade, nothing else moving.
+                        ...(isRepeatVisit ? null : {
+                          transform: tilesRevealed ? 'translateY(0)' : 'translateY(10px)',
+                        }),
+                        transition: isRepeatVisit
+                          ? `opacity ${tileTransitionMs}ms ease ${staggerDelay}ms`
+                          : `opacity ${tileTransitionMs}ms ease ${staggerDelay}ms, transform ${tileTransitionMs}ms ease ${staggerDelay}ms`,
+                        // Pre-promotes the compositor layer before the
+                        // transition starts. Without this, each tile's
+                        // transition kicks in at its own staggered moment and
+                        // forces a fresh layer promotion right then — with
+                        // dozens of tiles starting a few ms apart, those
+                        // promotions land throughout the reveal window
+                        // instead of once up front, reading as stutter.
+                        willChange: 'opacity, transform',
+                      }),
                     }}
                   >
                     <CanvasItem item={item} locale={locale} width={pos.w} height={pos.h} />
