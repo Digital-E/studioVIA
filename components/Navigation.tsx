@@ -51,11 +51,11 @@ export default function Navigation({ locale, activePage, isHome = false, bottomG
 
   return (
     <>
-      {!isHome && (
+      {!isHome && activePage !== 'projects' && (
         <div className="fixed top-0 left-0 right-0 h-20 bg-gradient-to-b from-white from-80% to-transparent pointer-events-none z-40" />
       )}
 
-      {bottomGradient && (
+      {bottomGradient && activePage !== 'projects' && (
         <div className="fixed bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white from-80% to-transparent pointer-events-none z-40" />
       )}
 

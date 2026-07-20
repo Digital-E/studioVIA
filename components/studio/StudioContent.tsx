@@ -128,9 +128,9 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
         </div>
 
         {/* Photo: fixed in place, fills the available viewport height above the nav */}
-        <div className="flex flex-col h-full" style={{ flex: '1 1 0%' }}>
+        <div className="flex flex-col h-full" style={{ flex: '1 1 0%', paddingRight: '1.25rem' }}>
           <div style={{ height: '11rem', flexShrink: 0 }} />
-          <div className="relative flex-1">
+          <div className="relative flex-1 z-[999]">
             {photoUrl && (
               <Image
                 src={photoUrl}

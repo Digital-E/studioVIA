@@ -65,9 +65,9 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
     <div className="pt-[4.5rem] md:pt-20 pb-24 pl-5 pr-5">
       {/* Header */}
       <div className="hidden md:grid md:grid-cols-12 border-b border-black pb-1">
-        <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{yearColumnLabel}</div>
-        <div className="col-span-5 font-build text-3xl leading-none text-via-gray">{nameLabel}</div>
-        <div className="col-span-2 font-build text-3xl leading-none text-via-gray">{locationLabel}</div>
+        <div className="col-span-2 font-build text-3xl leading-none">{yearColumnLabel}</div>
+        <div className="col-span-5 font-build text-3xl leading-none">{nameLabel}</div>
+        <div className="col-span-2 font-build text-3xl leading-none">{locationLabel}</div>
         <div className="col-start-11 col-span-2" />
       </div>
 
