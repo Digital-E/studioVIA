@@ -51,7 +51,7 @@ export function hasRevealedThisSession(): boolean {
 // ever-larger share of a shrinking tile, reading as a dead border around an
 // otherwise dense grid.
 const EDGE_MARGIN_FRAC = 0.15
-const DEFAULT_W   = 497  // 414 * 1.2 — postit size (the one tile type sized off this directly, see POSTIT_SIZE below) bumped another 20%
+const DEFAULT_W   = 397  // 414 * 1.2 — postit size (the one tile type sized off this directly, see POSTIT_SIZE below) bumped another 20%
 // A tile's total footprint should roughly match one screen (see
 // computeSizeConstants below) so a single pan position shows one complete,
 // densely-packed grid — per the client's sketch, which shows one whole
@@ -60,7 +60,8 @@ const DEFAULT_W   = 497  // 414 * 1.2 — postit size (the one tile type sized o
 // a little room before the exact same view repeats. Also the lever for
 // overall photo cell size (see computeSizeConstants) — bumped 20% (1.15 ->
 // 1.38) alongside DEFAULT_W above so every tile type grows together.
-const TILE_VIEWPORT_SLACK = 1.38
+// const TILE_VIEWPORT_SLACK = 1.38
+const TILE_VIEWPORT_SLACK = 1.7
 const VARIANT_GRID = 4  // K — variants form a KxK repeating pattern (see tileVariant)
 const N_VARIANTS  = VARIANT_GRID * VARIANT_GRID
 const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
@@ -74,13 +75,17 @@ const BACKDROP_BLEED  = 60    // px each per-tile blend backdrop rect extends pa
 // Below this viewport width, tiles render smaller (see MOBILE_SCALE) — desktop is unaffected.
 const MOBILE_BREAKPOINT = 768
 const MOBILE_SCALE = 0.6
+// Applied on top of MOBILE_SCALE (and the viewport-fit tile size) only on
+// mobile — desktop sizing is untouched either way.
+const MOBILE_TILE_BOOST = 1.8
 
 // Photo size is a fraction of its own cell (not of DEFAULT_W) — mostly
 // near-full-cell, occasionally a small accent — so items snap to the grid
 // per the client's sketch instead of the cell size chasing whatever the
 // tier mix happens to average out to. Postits are excluded from this and
 // always render at POSTIT_SIZE.
-const SIZE_TIERS = [0.55, 0.6, 0.85, 0.9, 0.95, 1, 1, 1]
+// const SIZE_TIERS = [0.55, 0.6, 0.85, 0.9, 0.95, 1, 1, 1]
+const SIZE_TIERS = [0.7, 0.85, 0.9, 0.95, 1, 1, 1]
 // Cell size (computeSizeConstants below) is therefore independent of this
 // array — a tier of 1 always means "fills the cell", never overflows it, so
 // the old overflow clamp in placeVariant becomes a rare aspect-ratio-only
@@ -144,12 +149,13 @@ function computeGridShape(n: number) {
 // overflows the viewport in either dimension — the other axis just ends up
 // with a little extra pan room instead of overflowing.
 function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, cols: number, rows: number): SizeConstants {
-  const scale = isMobile ? MOBILE_SCALE : 1
+  const boost = isMobile ? MOBILE_TILE_BOOST : 1
+  const scale = (isMobile ? MOBILE_SCALE : 1) * boost
   const defaultW = DEFAULT_W * scale
   const k = EDGE_MARGIN_FRAC
 
-  const targetTileW = viewW * TILE_VIEWPORT_SLACK
-  const targetTileH = viewH * TILE_VIEWPORT_SLACK
+  const targetTileW = viewW * TILE_VIEWPORT_SLACK * boost
+  const targetTileH = viewH * TILE_VIEWPORT_SLACK * boost
   // Solving targetTileW = cols*cellW + 2*(k*cellW) for cellW (and the same
   // for height, with cellH = cellW*POSTIT_ASPECT substituted in) — edgeMargin
   // is a fraction of whichever cellW comes out, not an input to it.
@@ -220,10 +226,12 @@ function tileVariant(tx: number, ty: number): number {
 // ─── grid-based layout ────────────────────────────────────────────────────────
 
 // width / height for a given item — real photo aspect ratio when known
-// (from Sanity's image metadata), a fixed ratio for postit cards, and a
+// (from Sanity's image metadata), always square for postit cards (kept
+// separate from POSTIT_ASPECT, which shapes the shared grid cell — the
+// postit's own card shape shouldn't change if the cell's does), and a
 // fallback for anything without metadata (e.g. video).
 function itemAspect(item: CanvasItemType): number {
-  if (item._type === 'canvasPostit') return 1 / POSTIT_ASPECT
+  if (item._type === 'canvasPostit') return 1
   const ar = item.image?.asset?.metadata?.dimensions?.aspectRatio
   return ar && ar > 0 ? ar : FALLBACK_ASPECT
 }
@@ -1136,6 +1144,23 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const [seed, setSeed] = useState<string | null>(null)
   useLayoutEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
 
+  // Measured (not guessed) footprint of the fixed center-text overlay, used
+  // below to hide any item whose rendered box would sit behind it — actual
+  // layout-time text dimensions (locale, line count, breakpoint) rather than
+  // a magic-number estimate that can drift out of sync with the real thing.
+  const textBlockRef = useRef<HTMLDivElement>(null)
+  const [textBlockSize, setTextBlockSize] = useState({ w: 0, h: 0 })
+  useLayoutEffect(() => {
+    const el = textBlockRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const box = entry.borderBoxSize?.[0]
+      setTextBlockSize(box ? { w: box.inlineSize, h: box.blockSize } : { w: el.offsetWidth, h: el.offsetHeight })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Below MOBILE_BREAKPOINT, tiles render at MOBILE_SCALE — desktop keeps
   // DEFAULT_W untouched.
   const isMobile = viewSize.w < MOBILE_BREAKPOINT
@@ -1161,6 +1186,29 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     [items, seed, grid, sizeConstants]
   )
 
+  // Which placements in tile (0,0) — the one under the fixed center text at
+  // the starting pan offset (0,0) — sit behind that text, frozen at the
+  // moment this layout was built rather than re-checked on every render.
+  // Tile (0,0) is exactly centered under the text at offset (0,0), so this
+  // reduces to a zone centered on canvas-origin, independent of viewport
+  // size. Recomputes only when the layout itself changes (a real resize
+  // regenerates the whole grid anyway, so old keys wouldn't match the new
+  // layout regardless) — never as a side effect of panning.
+  const initialHiddenKeys = useMemo(() => {
+    const keys = new Set<string>()
+    const variant0 = layouts[0]
+    if (!variant0 || (textBlockSize.w === 0 && textBlockSize.h === 0)) return keys
+    const TEXT_CLEARANCE = 24 // px of breathing room around the measured text, each side
+    const halfW = textBlockSize.w / 2 + TEXT_CLEARANCE
+    const halfH = textBlockSize.h / 2 + TEXT_CLEARANCE
+    for (const [placementKey, pos] of variant0.entries()) {
+      if (pos.x < halfW && pos.x + pos.w > -halfW && pos.y < halfH && pos.y + pos.h > -halfH) {
+        keys.add(placementKey)
+      }
+    }
+    return keys
+  }, [layouts, textBlockSize])
+
   // A layout placement's key isn't always an item's own _key — a grid cell
   // left over with no item to fill it (see the "filler" pass in
   // placeVariant) gets a repeated item under a synthetic key — so look the
@@ -1185,10 +1233,10 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       onTouchEnd={onTouchEnd}
     >
       <div
-        className="fixed inset-0 flex items-center justify-center pointer-events-none z-10  mix-blend-difference text-white"
+        className="fixed inset-0 flex items-center justify-center pointer-events-none z-10 text-black"
         style={{ opacity: textRevealed ? 1 : 0, transition: 'opacity 0.6s ease' }}
       >
-        <div className="text-center">
+        <div className="text-center" ref={textBlockRef}>
           <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
             <span className="block font-build text-3xl leading-none">Studio</span>
             <span className="block font-build text-3xl font-medium leading-none">VIA</span>
@@ -1249,6 +1297,19 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
               {Array.from(layout.entries()).map(([placementKey, pos]) => {
                 const item = itemsByKey.get(pos.itemKey)
                 if (!item) return null
+
+                // Whatever sat behind the center text on the very first
+                // screen (tile 0,0 at the starting offset) is hidden
+                // permanently — a fixed set computed once (see
+                // initialHiddenKeys below), not a live per-render geometry
+                // check. That's deliberate: re-checking on every render
+                // would also hide different items as new tiles pan under
+                // the fixed text, and un-hide the original ones the moment
+                // panning starts — neither of which is wanted. Only tile
+                // (0,0) itself is ever eligible, even though other tiles
+                // can share its same variant-0 layout pattern.
+                if (tx === 0 && ty === 0 && initialHiddenKeys.has(placementKey)) return null
+
                 // No per-item spread on a repeat visit — a short, uniform
                 // fade instead of replaying the full first-load stagger.
                 const staggerDelay = (staggerSettled || isRepeatVisit)
@@ -1273,8 +1334,20 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       // a wide range of large areas, causing z-index ties
                       // that fall back to (size-unrelated) DOM order.
                       // Postits always stack above every tile regardless of size.
+                      // Items with a credit get their own elevated band, below
+                      // postits but above every plain photo: the credit's own
+                      // caption renders below the image, spilling past this
+                      // item's own box into whatever cell happens to be below
+                      // it — without this, a smaller (and so normally
+                      // higher-stacking) neighboring photo landing in that
+                      // spillover zone would render on top of the caption and
+                      // cut it off, exactly because the size-based z-index
+                      // above only accounts for the image's own area, not the
+                      // caption hanging off the bottom of it.
                       zIndex: item._type === 'canvasPostit'
                         ? 2_000_000_000
+                        : item.credit
+                        ? 1_900_000_000 - Math.round(pos.w * pos.h)
                         : 1_000_000_000 - Math.round(pos.w * pos.h),
                       // GPU-composited transform, not a layout property like
                       // `top` — smooth even with many tiles animating with

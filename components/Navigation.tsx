@@ -48,7 +48,7 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
   const deHref = pathname.replace(`/${locale}`, '/de')
   const enHref = pathname.replace(`/${locale}`, '/en')
 
-  const blend = isHome ? 'text-white' : ''
+  const blend = isHome ? 'text-black' : ''
 
   return (
     <>
@@ -62,7 +62,7 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
 
       {/* Top bar */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 flex items-start justify-between p-5 pointer-events-none ${isHome ? 'mix-blend-difference' : ''}`}
+        className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between p-5 pointer-events-none"
         style={navRevealStyle}
       >
         <Link href={homeHref} className={`font-build text-3xl md:text-4xl tracking-tight pointer-events-auto ${blend}`}>
@@ -80,7 +80,7 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
 
       {/* Bottom bar */}
       <nav
-        className={`fixed bottom-0 left-0 right-0 z-50 flex items-end justify-between p-5 pointer-events-none ${isHome ? 'mix-blend-difference' : ''}`}
+        className="fixed bottom-0 left-0 right-0 z-50 flex items-end justify-between p-5 pointer-events-none"
         style={navRevealStyle}
       >
         <Link

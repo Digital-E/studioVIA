@@ -23,7 +23,7 @@ export default function PostIt({ item, locale }: PostItProps) {
   const backImageUrl = item.backImage ? urlFor(item.backImage).width(600).url() : null
 
   return (
-    <div className="postit-card w-full h-full" style={{ minHeight: '220px' }}>
+    <div className="postit-card w-full h-full">
       <div className="postit-inner w-full h-full">
         {/* Front: yellow post-it */}
         <div className="postit-front flex flex-col p-5" style={{ backgroundColor: 'var(--color-postit)' }}>
