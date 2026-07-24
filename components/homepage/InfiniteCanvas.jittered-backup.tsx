@@ -44,23 +44,8 @@ export function hasRevealedThisSession(): boolean {
 
 // ─── layout constants ─────────────────────────────────────────────────────────
 
-// Tile edge margin as a fraction of cellW, not a fixed pixel value — a fixed
-// margin was fine back when tiles were far bigger than the viewport (a
-// negligible sliver of a ~2800px tile), but once tile size is fit to the
-// viewport (see TILE_VIEWPORT_SLACK below), the same fixed margin eats an
-// ever-larger share of a shrinking tile, reading as a dead border around an
-// otherwise dense grid.
-const EDGE_MARGIN_FRAC = 0.15
-const DEFAULT_W   = 497  // 414 * 1.2 — postit size (the one tile type sized off this directly, see POSTIT_SIZE below) bumped another 20%
-// A tile's total footprint should roughly match one screen (see
-// computeSizeConstants below) so a single pan position shows one complete,
-// densely-packed grid — per the client's sketch, which shows one whole
-// composition, not a sparse crop of a much bigger canvas. This is how much
-// bigger than the viewport a tile is allowed to grow, purely so panning has
-// a little room before the exact same view repeats. Also the lever for
-// overall photo cell size (see computeSizeConstants) — bumped 20% (1.15 ->
-// 1.38) alongside DEFAULT_W above so every tile type grows together.
-const TILE_VIEWPORT_SLACK = 1.38
+const EDGE_MARGIN = 180
+const DEFAULT_W   = 414  // 360 * 1.15 — client asked for all images ~15% bigger
 const VARIANT_GRID = 4  // K — variants form a KxK repeating pattern (see tileVariant)
 const N_VARIANTS  = VARIANT_GRID * VARIANT_GRID
 const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
@@ -68,31 +53,46 @@ const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a 
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
 const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
-const JITTER_MULT     = 0.2   // fraction of each item's own per-cell slack used for jitter — kept small (per the client's grid sketch) so items read as snapped to their cell, with stagger doing the work of the "slight overlap" look rather than free-roaming jitter.
+const JITTER_MULT     = 0.55  // fraction of each item's own per-cell slack used for jitter — kept under 1 so an item never fully leaves its own cell (the resolver's t=0 fallback stays safe). Kept well under 1 (not just <1) so items stay near their cell center rather than roaming to the far edge, which is what was reading as big empty gaps between neighbors.
 const BACKDROP_BLEED  = 60    // px each per-tile blend backdrop rect extends past its own tile bounds, so content spilling past a tile edge (e.g. a credit caption below its image) still lands on a painted backdrop instead of a seam
+// Padding added to the item count fed into computeTileGrid, purely so the
+// grid always has a few cells to spare for the center-text reservation in
+// placeVariant (see CENTER_CLEAR_HALF_W/H there). Without this, a grid sized
+// exactly to the item count can leave too few free cells to reserve, so the
+// reservation silently gives up rather than dropping real content — the
+// exact case at today's item count (11 items -> a 4x3 grid has no slack).
+// The unused padding elsewhere (variants 1-15, and any cells the reservation
+// doesn't end up needing) is simply absorbed by the existing repeat-filler
+// mechanism, the same as any other leftover cell.
+const CENTER_RESERVE_PAD_CELLS = 4
 
 // Below this viewport width, tiles render smaller (see MOBILE_SCALE) — desktop is unaffected.
 const MOBILE_BREAKPOINT = 768
 const MOBILE_SCALE = 0.6
 
-// Photo size is a fraction of its own cell (not of DEFAULT_W) — mostly
-// near-full-cell, occasionally a small accent — so items snap to the grid
-// per the client's sketch instead of the cell size chasing whatever the
-// tier mix happens to average out to. Postits are excluded from this and
-// always render at POSTIT_SIZE.
-const SIZE_TIERS = [0.55, 0.6, 0.85, 0.9, 0.95, 1, 1, 1]
-// Cell size (computeSizeConstants below) is therefore independent of this
-// array — a tier of 1 always means "fills the cell", never overflows it, so
-// the old overflow clamp in placeVariant becomes a rare aspect-ratio-only
-// case rather than the common path.
+// Photo size varies per item — mostly medium/large, occasionally a small
+// accent image — instead of every item rendering at the same fixed size.
+// Postits are excluded from this and always render at POSTIT_SIZE.
+const SIZE_TIERS = [1, 1.25, 1.4, 1.4, 1.6, 1.6, 1.7, 1.7]
+// Cell size is based on this average, not the max tier above — most items
+// draw a tier well under the max, so sizing every cell to comfortably fit
+// the rare largest tile left a lot of empty margin around the common,
+// smaller ones. The rare item that does draw above this still renders at
+// full size — it's just clamped to the cell if it doesn't fit (see the
+// w > cellW check in placeVariant) and/or allowed to overlap a neighbor up
+// to MAX_OVERLAP_FRAC, both already handled below.
+const TYPICAL_SIZE_TIER = SIZE_TIERS.reduce((a, b) => a + b, 0) / SIZE_TIERS.length
 
 // Hard cap on overlap area (as a fraction of the smaller item's own area)
 // between any two neighboring items. Enforced by measuring actual placed
 // boxes and pulling pairs apart below, not by assuming a worst case up front.
-const MAX_OVERLAP_FRAC = 0.15
+const MAX_OVERLAP_FRAC = 0.2
 
 // ─── responsive sizing constants ─────────────────────────────────────────────
 
+// All absolute pixel sizing derives from DEFAULT_W/EDGE_MARGIN scaled down
+// together on mobile, so the collage's proportions (jitter, stagger, overlap
+// caps) stay identical — only the physical tile size shrinks.
 interface SizeConstants {
   defaultW: number
   edgeMargin: number
@@ -100,12 +100,20 @@ interface SizeConstants {
   cellH: number
 }
 
-// ─── tile grid shape ──────────────────────────────────────────────────────────
-// Cols/rows depend only on how many items there are — not on cell pixel size
-// — so this can run before cell sizing (see computeSizeConstants below),
-// which needs cols/rows to fit a tile to the viewport.
+function computeSizeConstants(isMobile: boolean): SizeConstants {
+  const scale = isMobile ? MOBILE_SCALE : 1
+  const defaultW = DEFAULT_W * scale
+  const edgeMargin = EDGE_MARGIN * scale
+  const wTypical = defaultW * TYPICAL_SIZE_TIER
+  // Packed tight for a dense collage look.
+  const cellW = wTypical * 1.05
+  const cellH = cellW * POSTIT_ASPECT
+  return { defaultW, edgeMargin, cellW, cellH }
+}
 
-function computeGridShape(n: number) {
+// ─── tile grid sizing ─────────────────────────────────────────────────────────
+
+function computeTileGrid(n: number, c: SizeConstants) {
   const count = Math.max(n, 1)
   const target = Math.sqrt(count * TILE_ASPECT * POSTIT_ASPECT)
   const targetCols = Math.max(2, Math.round(target))
@@ -132,42 +140,10 @@ function computeGridShape(n: number) {
   }
 
   const rows = Math.max(1, Math.ceil(count / cols))
-  return { cols, rows }
-}
-
-// Cell size is derived from the live viewport (not a fixed pixel value) so a
-// whole tile's footprint stays close to one screen regardless of window
-// size — otherwise a tile far bigger than the screen means any one pan
-// position only ever shows a fraction of it, reading as huge gaps between
-// rows/columns instead of the sketch's one complete grid. Whichever axis
-// (width- or height-derived) gives the smaller cell wins, so the tile never
-// overflows the viewport in either dimension — the other axis just ends up
-// with a little extra pan room instead of overflowing.
-function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, cols: number, rows: number): SizeConstants {
-  const scale = isMobile ? MOBILE_SCALE : 1
-  const defaultW = DEFAULT_W * scale
-  const k = EDGE_MARGIN_FRAC
-
-  const targetTileW = viewW * TILE_VIEWPORT_SLACK
-  const targetTileH = viewH * TILE_VIEWPORT_SLACK
-  // Solving targetTileW = cols*cellW + 2*(k*cellW) for cellW (and the same
-  // for height, with cellH = cellW*POSTIT_ASPECT substituted in) — edgeMargin
-  // is a fraction of whichever cellW comes out, not an input to it.
-  const cellWFromWidth  = targetTileW / (cols + 2 * k)
-  const cellWFromHeight = targetTileH / (rows * POSTIT_ASPECT + 2 * k)
-  // Never smaller than DEFAULT_W's own scale would suggest is sane — guards
-  // against a degenerate viewport (e.g. mid-resize at 0) collapsing cells.
-  const cellW = Math.max(defaultW * 0.3, Math.min(cellWFromWidth, cellWFromHeight))
-  const cellH = cellW * POSTIT_ASPECT
-  const edgeMargin = k * cellW
-  return { defaultW, edgeMargin, cellW, cellH }
-}
-
-function computeTileGrid(shape: { cols: number; rows: number }, c: SizeConstants) {
   return {
-    cols: shape.cols, rows: shape.rows,
-    tileW: shape.cols * c.cellW + 2 * c.edgeMargin,
-    tileH: shape.rows * c.cellH + 2 * c.edgeMargin,
+    cols, rows,
+    tileW: cols * c.cellW + 2 * c.edgeMargin,
+    tileH: rows * c.cellH + 2 * c.edgeMargin,
   }
 }
 
@@ -324,6 +300,48 @@ function placeVariant(
     return rand(seed + ':cell:' + a + ':v' + variant, 0) - rand(seed + ':cell:' + b + ':v' + variant, 0)
   })
 
+  // Variant 0's dead-center cells are kept permanently empty. Panning starts
+  // at offset (0,0), which puts tile (0,0) — always variant 0, see
+  // tileVariant — directly behind the fixed, centered "Studio VIA" text
+  // overlay (see the InfiniteCanvas render below), so reserving this zone
+  // here, before any item or filler claims it, guarantees no photo (or
+  // postit) ever loads underneath that text on the very first screen.
+  // Scoped to variant 0 only (not every variant) — reserving the same
+  // relative cells everywhere would leave an identical blank hole in every
+  // tile, which reads as a repeating grid artifact once you pan away,
+  // defeating the whole point of the per-variant randomization.
+  //
+  // This is a rectangle sized to the text block, not a single cell: when
+  // cols or rows is even (as with cols=4 at today's item count), the tile's
+  // exact numeric center falls precisely on the boundary between two cells,
+  // not inside either one. Reserving only whichever single cell floor(cols/2)
+  // picks leaves its neighbor across that boundary completely unreserved —
+  // and the text is center-aligned, so it extends into that neighbor too.
+  // Intersecting a real rectangle against every cell instead reserves
+  // however many cells the text actually spans (1, 2, or 4, depending on
+  // parity), so nothing can jitter up to the boundary and still clip it.
+  const CENTER_CLEAR_HALF_W = defaultW * 0.7
+  const CENTER_CLEAR_HALF_H = defaultW * 0.55
+  const clearLeft = tileW / 2 - CENTER_CLEAR_HALF_W
+  const clearRight = tileW / 2 + CENTER_CLEAR_HALF_W
+  const clearTop = tileH / 2 - CENTER_CLEAR_HALF_H
+  const clearBottom = tileH / 2 + CENTER_CLEAR_HALF_H
+  const cellIntersectsClearZone = (idx: number) => {
+    const col = idx % cols, row = Math.floor(idx / cols)
+    const left = edgeMargin + col * cellW, right = left + cellW
+    const top = edgeMargin + row * cellH, bottom = top + cellH
+    return left < clearRight && right > clearLeft && top < clearBottom && bottom > clearTop
+  }
+  const reservedCellIndices = variant === 0 ? new Set(cellIndices.filter(cellIntersectsClearZone)) : new Set<number>()
+  // Only reserve if there's still a cell for every real (non-filler) item
+  // without them — with very few items in the CMS, losing cells to the
+  // reservation could otherwise mean dropping real content, which is worse
+  // than the text briefly sitting over a tile.
+  const canReserveCenter = cellIndices.length - reservedCellIndices.size >= shuffled.length
+  const fillableCellIndices = canReserveCenter
+    ? cellIndices.filter((idx) => !reservedCellIndices.has(idx))
+    : cellIndices
+
   // A grid sized from cols/rows targeting an aspect ratio can leave more
   // cells than items — e.g. 11 items is prime, so the only zero-leftover
   // grids are a degenerate 1x11 or 11x1 strip (see computeTileGrid). Rather
@@ -339,7 +357,7 @@ function placeVariant(
   // (keyed by placementKey below) can hold both without colliding.
   const fillPool = items.filter((it) => it._type !== 'canvasPostit')
     .sort((a, b) => rand(seed + a._key + ':fill:v' + variant, 0) - rand(seed + b._key + ':fill:v' + variant, 0))
-  const numExtra = Math.max(0, cellIndices.length - shuffled.length)
+  const numExtra = Math.max(0, fillableCellIndices.length - shuffled.length)
   const slots: { item: CanvasItemType; placementKey: string }[] = [
     ...shuffled.map((item) => ({ item, placementKey: item._key })),
     ...(fillPool.length > 0
@@ -351,7 +369,7 @@ function placeVariant(
   ]
 
   // Assigns each slot's cell on demand (rather than a fixed 1:1 zip against
-  // cellIndices) so a repeated item's filler copy can be steered
+  // fillableCellIndices) so a repeated item's filler copy can be steered
   // away from any cell already holding that same item — including its own
   // original placement. Two occurrences of the same photo landing in
   // touching cells reads as an obvious mistake, not an intentional repeat,
@@ -360,7 +378,7 @@ function placeVariant(
   // this reduces to the previous fixed-order assignment for every item that
   // only appears once (i.e. every real item, unless it's also the fill
   // pool's source for a repeat).
-  const remainingCells = [...cellIndices]
+  const remainingCells = [...fillableCellIndices]
   const usedCellsByItemKey = new Map<string, number[]>()
   const cellsAreNear = (a: number, b: number) => {
     const ca = a % cols, ra = Math.floor(a / cols)
@@ -382,16 +400,10 @@ function placeVariant(
   const cellToPlacedIndex = new Map<number, number>()
 
   slots.forEach(({ item, placementKey }) => {
-    // Postits are a fixed UI card sized off DEFAULT_W directly; every other
-    // item's tier is a fraction of its own cell (see SIZE_TIERS), so it
-    // snaps to the grid regardless of how cell size is computed.
-    let w: number
-    if (item._type === 'canvasPostit') {
-      w = Math.round(defaultW * POSTIT_SIZE)
-    } else {
-      const sizeTier = SIZE_TIERS[Math.floor(rand(seed + placementKey + ':size:v' + variant, 0) * SIZE_TIERS.length)]
-      w = Math.round(cellW * sizeTier)
-    }
+    const sizeTier = item._type === 'canvasPostit'
+      ? POSTIT_SIZE
+      : SIZE_TIERS[Math.floor(rand(seed + placementKey + ':size:v' + variant, 0) * SIZE_TIERS.length)]
+    let w = Math.round(defaultW * sizeTier)
     let h = Math.round(w / itemAspect(item))
 
     // An item taller or wider than its own cell would overflow into
@@ -1137,23 +1149,20 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   useLayoutEffect(() => { setSeed(Math.random().toString(36).slice(2)) }, [])
 
   // Below MOBILE_BREAKPOINT, tiles render at MOBILE_SCALE — desktop keeps
-  // DEFAULT_W untouched.
+  // DEFAULT_W untouched. Tracked as a boolean (not raw width) so the heavy
+  // grid/layout rebuild below only reruns when crossing the breakpoint, not
+  // on every resize tick (e.g. mobile browser chrome show/hide).
   const isMobile = viewSize.w < MOBILE_BREAKPOINT
+  const sizeConstants = useMemo(() => computeSizeConstants(isMobile), [isMobile])
 
-  // Grid shape (cols/rows) depends only on item count; cell size is then
-  // fit to the live viewport (see computeSizeConstants) so a tile's total
-  // footprint stays close to one screen — this does mean sizeConstants (and
-  // so the whole layout below) recomputes on every resize tick, not just
-  // when crossing the mobile breakpoint, which is the point: a tile sized
-  // for the viewport has to track the viewport.
-  const gridShape = useMemo(() => computeGridShape(items.length), [items.length])
-  const sizeConstants = useMemo(
-    () => computeSizeConstants(isMobile, viewSize.w, viewSize.h, gridShape.cols, gridShape.rows),
-    [isMobile, viewSize.w, viewSize.h, gridShape]
-  )
+  // Grid dimensions (and so tile size) scale with item count so items always
+  // render at full defaultW — rather than shrinking items to fit a
+  // fixed-size tile, the tile grows to fit however many items there are.
+  // Padded by CENTER_RESERVE_PAD_CELLS so there's always slack left over for
+  // the center-text reservation in placeVariant.
   const grid = useMemo(
-    () => computeTileGrid(gridShape, sizeConstants),
-    [gridShape, sizeConstants]
+    () => computeTileGrid(items.length + CENTER_RESERVE_PAD_CELLS, sizeConstants),
+    [items.length, sizeConstants]
   )
 
   const layouts = useMemo(

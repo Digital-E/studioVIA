@@ -16,7 +16,7 @@ export default async function ProjectsPage({
 
   return (
     <main className="min-h-screen">
-      <Navigation locale={locale} activePage="projects" />
+      <Navigation locale={locale} activePage="projects" bottomGradient />
       <ProjectsList years={data.years ?? []} locale={locale} />
     </main>
   )

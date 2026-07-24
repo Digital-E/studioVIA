@@ -260,14 +260,14 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
       {showTopGradient && (
         <div
-          className="absolute top-0 left-0 right-0 h-24 md:hidden pointer-events-none"
+          className="absolute top-0 left-0 right-0 h-24 pointer-events-none"
           style={{ background: 'linear-gradient(to top, transparent, white)' }}
         />
       )}
 
       {showGradient && (
         <div
-          className="absolute bottom-0 left-0 right-0 h-24 md:hidden pointer-events-none"
+          className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
           style={{ background: 'linear-gradient(to bottom, transparent, white)' }}
         />
       )}

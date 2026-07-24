@@ -8,10 +8,11 @@ interface NavigationProps {
   locale: string
   activePage: 'projects' | 'studio' | null
   isHome?: boolean
+  topGradient?: boolean
   bottomGradient?: boolean
 }
 
-export default function Navigation({ locale, activePage, isHome = false, bottomGradient = false }: NavigationProps) {
+export default function Navigation({ locale, activePage, isHome = false, topGradient = true, bottomGradient = false }: NavigationProps) {
   const pathname = usePathname()
 
   // On the homepage, the nav bars fade in only once the canvas's own tile
@@ -51,11 +52,11 @@ export default function Navigation({ locale, activePage, isHome = false, bottomG
 
   return (
     <>
-      {!isHome && activePage !== 'projects' && (
+      {!isHome && topGradient && (
         <div className="fixed top-0 left-0 right-0 h-20 bg-gradient-to-b from-white from-80% to-transparent pointer-events-none z-40" />
       )}
 
-      {bottomGradient && activePage !== 'projects' && (
+      {bottomGradient && (
         <div className="fixed bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white from-80% to-transparent pointer-events-none z-40" />
       )}
 
@@ -64,10 +65,10 @@ export default function Navigation({ locale, activePage, isHome = false, bottomG
         className={`fixed top-0 left-0 right-0 z-50 flex items-start justify-between p-5 pointer-events-none ${isHome ? 'mix-blend-difference' : ''}`}
         style={navRevealStyle}
       >
-        <Link href={homeHref} className={`font-build text-3xl tracking-tight pointer-events-auto ${blend}`}>
+        <Link href={homeHref} className={`font-build text-3xl md:text-4xl tracking-tight pointer-events-auto ${blend}`}>
           VIA
         </Link>
-        <div className={`flex gap-5 font-build text-xl pointer-events-auto ${blend}`}>
+        <div className={`flex gap-5 font-build text-xl md:text-2xl pointer-events-auto ${blend}`}>
           <Link href={deHref} className={locale === 'de' ? 'underline underline-offset-2' : ''}>
             DE
           </Link>
@@ -84,13 +85,13 @@ export default function Navigation({ locale, activePage, isHome = false, bottomG
       >
         <Link
           href={projectsHref}
-          className={`font-build text-3xl pointer-events-auto ${blend} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl md:text-4xl pointer-events-auto ${blend} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
         >
           {locale === 'de' ? 'Projekte' : 'Projects'}
         </Link>
         <Link
           href={studioHref}
-          className={`font-build text-3xl pointer-events-auto ${blend} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl md:text-4xl pointer-events-auto ${blend} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
         >
           Studio
         </Link>

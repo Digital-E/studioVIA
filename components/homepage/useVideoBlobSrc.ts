@@ -43,9 +43,13 @@ export function useVideoBlobSrc(src: string | undefined) {
     let cancelled = false
     const io = new IntersectionObserver(([entry]) => {
       if (entry?.isIntersecting) {
-        if (!blobCache.has(src)) {
-          loadBlobUrl(src).then((url) => { if (!cancelled) setBlobUrl(url) })
-        }
+        // Always resolve through loadBlobUrl, even if blobCache already has
+        // this src — it short-circuits to the cached URL synchronously, but
+        // still needs to reach setBlobUrl so *this* instance's local state
+        // picks it up. A cache-only guard here would skip that for every
+        // instance after the first (e.g. a repeated tile, or the same item
+        // panned to again later), leaving its blobUrl stuck at null forever.
+        loadBlobUrl(src).then((url) => { if (!cancelled) setBlobUrl(url) })
         el.play().catch(() => {})
       } else {
         el.pause()
