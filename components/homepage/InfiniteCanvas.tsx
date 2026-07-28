@@ -194,7 +194,7 @@ const DRAG_THRESHOLD = 5 // px of movement before a mousedown counts as a pan, n
 // images cap out at a small, blurry raster size, not sharp enough at the
 // size these need to read at.
 const CURSOR_SCALE = 1.6
-type CursorMode = 'idle' | 'grab' | 'link'
+export type CursorMode = 'idle' | 'grab' | 'link'
 const CURSOR_ICONS: Record<CursorMode, { src: string; w: number; h: number }> = {
   idle: { src: '/cursors/hand1.svg', w: 19.37 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE },
   grab: { src: '/cursors/hand2.svg', w: 18.76 * CURSOR_SCALE, h: 14.37 * CURSOR_SCALE },
@@ -208,8 +208,12 @@ const CURSOR_ICONS: Record<CursorMode, { src: string; w: number; h: number }> = 
 // value. Module scope survives that remount (only a real hard reload clears
 // it, which is fine — there's genuinely no last-known position then), so a
 // fresh mount can restore the cursor immediately instead of leaving it
-// hidden until the next real mousemove.
-let lastKnownCursor = { x: 0, y: 0, mode: 'idle' as CursorMode, shown: false }
+// hidden until the next real mousemove. Exported so Navigation.tsx can keep
+// it warm while mounted on every *other* page too — this component only
+// exists on the homepage, so without that, navigating back here would still
+// restore a position from however long ago the user last left it, not
+// wherever the pointer actually is now.
+export let lastKnownCursor = { x: 0, y: 0, mode: 'idle' as CursorMode, shown: false }
 
 // ─── seeded random (FNV-1a 32-bit) ───────────────────────────────────────────
 

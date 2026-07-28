@@ -10,6 +10,7 @@ import type Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 import { urlFor } from '@/lib/sanity'
 import type { Slide } from '@/lib/types'
+import { lastKnownCursor } from '@/components/homepage/InfiniteCanvas'
 
 interface ProjectSliderProps {
   slides: Slide[]
@@ -18,8 +19,20 @@ interface ProjectSliderProps {
 
 export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
   const swiperRef = useRef<SwiperType | null>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-  const [side, setSide] = useState<'left' | 'right' | null>(null)
+  // Seeded from the shared pointer-position store (kept warm on every page
+  // by Navigation.tsx) instead of a hardcoded default — without this, the
+  // arrow cursor stayed invisible from mount until the first real mousemove,
+  // even though the pointer is already sitting somewhere over the page the
+  // moment this slider appears (e.g. right on the project tile the user just
+  // clicked). The `.plyr` (video-controls) exclusion below only applies to
+  // the *live* handler, not this initial guess — a stale render can't know
+  // whether the pointer happens to be over Plyr's controls, and that's a
+  // narrow enough edge case to just self-correct on the very next real move.
+  const [mousePos, setMousePos] = useState(() => ({ x: lastKnownCursor.x, y: lastKnownCursor.y }))
+  const [side, setSide] = useState<'left' | 'right' | null>(() => {
+    if (typeof window === 'undefined' || !lastKnownCursor.shown) return null
+    return lastKnownCursor.x < window.innerWidth / 2 ? 'left' : 'right'
+  })
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     setMousePos({ x: e.clientX, y: e.clientY })

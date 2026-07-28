@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { HOME_TILES_REVEAL_TOTAL_MS, hasRevealedThisSession } from './homepage/InfiniteCanvas'
+import { HOME_TILES_REVEAL_TOTAL_MS, hasRevealedThisSession, lastKnownCursor } from './homepage/InfiniteCanvas'
 
 interface NavigationProps {
   locale: string
@@ -40,6 +40,33 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
   const navRevealStyle = isHome
     ? { opacity: navRevealed ? 1 : 0, transition: 'opacity 0.6s ease' }
     : undefined
+
+  // InfiniteCanvas (the custom hand cursor's owner) only exists on the
+  // homepage, so its own tracking pauses entirely while browsing any other
+  // page — without this, lastKnownCursor would stay frozen at wherever the
+  // pointer was when the user last left the homepage, and returning here
+  // (nav click, back button) would restore the cursor to that stale spot
+  // instead of the pointer's actual current position, until the next move.
+  useEffect(() => {
+    if (isHome) return
+    const track = (x: number, y: number, target: EventTarget | null) => {
+      lastKnownCursor.x = x
+      lastKnownCursor.y = y
+      lastKnownCursor.shown = true
+      lastKnownCursor.mode = (target as HTMLElement)?.closest?.('a') ? 'link' : 'idle'
+    }
+    const onMove = (e: MouseEvent) => track(e.clientX, e.clientY, e.target)
+    const onEnter = (e: MouseEvent) => track(e.clientX, e.clientY, e.target)
+    const onLeave = () => { lastKnownCursor.shown = false }
+    window.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseenter', onEnter)
+    document.addEventListener('mouseleave', onLeave)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseenter', onEnter)
+      document.removeEventListener('mouseleave', onLeave)
+    }
+  }, [isHome])
 
   const projectsHref = `/${locale}/projects`
   const studioHref = `/${locale}/studio`
