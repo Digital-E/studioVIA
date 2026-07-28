@@ -92,7 +92,7 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
             className={`group flex md:grid md:grid-cols-12 border-b border-black items-start h-[65px] md:h-[160px] ${i === 0 ? 'border-t md:border-t-0' : ''} ${clickable ? 'cursor-pointer' : ''}`}
             onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
           >
-            <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">{isNewYear ? year : ''}</div>
+            <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem]">{isNewYear ? year : ''}</div>
             <div className="flex-1 md:col-span-5 font-build text-[1rem] md:text-3xl leading-none pl-4 md:pl-0 pr-4 md:pr-6 py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">
               <span className="font-medium">{title}</span>
               {location && <span className="md:hidden"><br />{location}</span>}

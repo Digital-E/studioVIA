@@ -184,6 +184,33 @@ const FRICTION = 0.96   // velocity decay per frame for drag-fling
 const MIN_V    = 0.2    // px/frame threshold to stop fling
 const DRAG_THRESHOLD = 5 // px of movement before a mousedown counts as a pan, not a click
 
+// ─── custom hand cursor (desktop only) ────────────────────────────────────
+// hand1 = idle (just moving over the canvas), hand2 = actively panning
+// (mousedown/drag), hand3 = hovering a clickable project tile. Each icon's
+// displayed size is its own SVG viewBox scaled by the same factor, so hand2
+// (drawn shorter/flatter, like a closed fist) naturally renders shorter than
+// the other two rather than being stretched to match their height. Kept as
+// SVG rather than a native `cursor: url()` PNG — the browser's own cursor
+// images cap out at a small, blurry raster size, not sharp enough at the
+// size these need to read at.
+const CURSOR_SCALE = 1.6
+type CursorMode = 'idle' | 'grab' | 'link'
+const CURSOR_ICONS: Record<CursorMode, { src: string; w: number; h: number }> = {
+  idle: { src: '/cursors/hand1.svg', w: 19.37 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE },
+  grab: { src: '/cursors/hand2.svg', w: 18.76 * CURSOR_SCALE, h: 14.37 * CURSOR_SCALE },
+  link: { src: '/cursors/hand3.svg', w: 18.76 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE },
+}
+
+// A locale switch or nav click stays on the same page but remounts this
+// whole component (new params -> new server render -> this client component
+// is torn down and recreated) — the pointer itself never moved, but every
+// piece of component state, including cursorShown, resets to its initial
+// value. Module scope survives that remount (only a real hard reload clears
+// it, which is fine — there's genuinely no last-known position then), so a
+// fresh mount can restore the cursor immediately instead of leaving it
+// hidden until the next real mousemove.
+let lastKnownCursor = { x: 0, y: 0, mode: 'idle' as CursorMode, shown: false }
+
 // ─── seeded random (FNV-1a 32-bit) ───────────────────────────────────────────
 
 function rand(key: string, n: number): number {
@@ -832,6 +859,12 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
 
   const containerRef  = useRef<HTMLDivElement>(null)
   const innerRef      = useRef<HTMLDivElement>(null)
+  const cursorRef     = useRef<HTMLDivElement>(null)
+  // Seeded from the module-level snapshot (see lastKnownCursor above), not a
+  // hardcoded default, so a remount from a locale switch or nav click picks
+  // up right where the previous instance left off.
+  const [cursorMode, setCursorMode]   = useState<CursorMode>(() => lastKnownCursor.mode)
+  const [cursorShown, setCursorShown] = useState(() => lastKnownCursor.shown)
 
   // offsetRef  — current visual position
   // targetRef  — where we want to be (lerp chases it)
@@ -861,6 +894,22 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
         `translate3d(${w / 2 + x}px,${h / 2 + y}px,0)`
     }
   }, [])
+
+  // Moves the custom hand cursor straight via the DOM (like applyTransform
+  // above), not React state — mousemove fires far more often than a render
+  // budget allows.
+  const updateCursorPos = useCallback((x: number, y: number) => {
+    if (cursorRef.current) {
+      cursorRef.current.style.transform = `translate3d(${x}px,${y}px,0)`
+    }
+  }, [])
+
+  // Paints the cursor at its last known position before the first frame —
+  // a *layout* effect, not a regular one, so a remount (locale switch, nav
+  // click) never flashes it at the top-left default transform first.
+  useLayoutEffect(() => {
+    updateCursorPos(lastKnownCursor.x, lastKnownCursor.y)
+  }, [updateCursorPos])
 
   // Throttled React state update for tile recalculation.
   // Called directly (not via a nested RAF) to avoid frame-stealing.
@@ -966,6 +1015,8 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       x: e.clientX, y: e.clientY,
       ox: offsetRef.current.x, oy: offsetRef.current.y,
     }
+    setCursorMode('grab')
+    lastKnownCursor.mode = 'grab'
     e.preventDefault()
   }, [cancelAnim])
 
@@ -989,7 +1040,62 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     if (!isDragging.current) return
     isDragging.current = false
     launchFling()
+    // Mousemove doesn't fire on release, so re-derive idle-vs-link from
+    // wherever the pointer actually is now rather than waiting for the next
+    // real move to correct it away from 'grab'.
+    const el = document.elementFromPoint(lastKnownCursor.x, lastKnownCursor.y)
+    const mode = el?.closest('a') ? 'link' : 'idle'
+    setCursorMode(mode)
+    lastKnownCursor.mode = mode
   }, [launchFling])
+
+  // The canvas is only one part of the homepage — the fixed nav bars
+  // (rendered by a sibling <Navigation>, see app/[locale]/page.tsx) sit in
+  // their own stacking context on top of it, so a mousemove bound to just
+  // this container never fires while hovering them. Tracking on `window`
+  // instead sees every mouse movement on the page regardless of which
+  // element is on top, so the same hand cursor follows the pointer and
+  // reacts to nav links exactly like it does over canvas tiles.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      lastKnownCursor.x = e.clientX
+      lastKnownCursor.y = e.clientY
+      lastKnownCursor.shown = true
+      updateCursorPos(e.clientX, e.clientY)
+      setCursorShown(true)
+      if (!isDragging.current) {
+        const mode = (e.target as HTMLElement).closest('a') ? 'link' : 'idle'
+        setCursorMode(mode)
+        lastKnownCursor.mode = mode
+      }
+    }
+    window.addEventListener('mousemove', handler)
+    return () => window.removeEventListener('mousemove', handler)
+  }, [updateCursorPos])
+
+  // Shows/hides the cursor overlay based on the pointer actually being over
+  // the browser viewport at all — separate from the container's own
+  // mouseleave (below), which only ever stops an in-progress drag when the
+  // pointer crosses onto the nav bars, not the whole-page show/hide.
+  useEffect(() => {
+    const onEnter = (e: MouseEvent) => {
+      lastKnownCursor.x = e.clientX
+      lastKnownCursor.y = e.clientY
+      lastKnownCursor.shown = true
+      updateCursorPos(e.clientX, e.clientY)
+      setCursorShown(true)
+    }
+    const onLeave = () => {
+      lastKnownCursor.shown = false
+      setCursorShown(false)
+    }
+    document.addEventListener('mouseenter', onEnter)
+    document.addEventListener('mouseleave', onLeave)
+    return () => {
+      document.removeEventListener('mouseenter', onEnter)
+      document.removeEventListener('mouseleave', onLeave)
+    }
+  }, [updateCursorPos])
 
   // A link's navigation happens on click, after mouseup — if the mousedown
   // that started it actually panned the canvas, cancel that click so
@@ -1221,6 +1327,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   const lines = displayText?.split('\n') ?? []
 
   return (
+    <>
     <div
       ref={containerRef}
       className="canvas-container fixed inset-0 overflow-hidden select-none bg-white"
@@ -1390,5 +1497,32 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
         })}
       </div>
     </div>
+
+    {/* Custom hand cursor — desktop only (native cursor is hidden via the
+        `.canvas-container` CSS rule at the same breakpoint). Rendered as a
+        sibling of the canvas container, not nested inside it: `nav`
+        (Navigation.tsx) and `.canvas-container` are each their own
+        fixed-position stacking context, so a z-index set *inside* one of
+        them can never out-rank the other — only a z-index at this same
+        top-level, sibling to both, can guarantee the cursor paints above
+        whichever one the pointer happens to be over. Position is driven
+        imperatively (see updateCursorPos) so mousemove doesn't force a
+        React render on every pixel; only the icon (cursorMode) and
+        visibility go through state, since those change rarely. */}
+    <div
+      ref={cursorRef}
+      className="hidden md:block fixed left-0 top-0 pointer-events-none z-[9999]"
+      style={{ opacity: cursorShown ? 1 : 0 }}
+    >
+      <img
+        src={CURSOR_ICONS[cursorMode].src}
+        alt=""
+        draggable={false}
+        width={CURSOR_ICONS[cursorMode].w}
+        height={CURSOR_ICONS[cursorMode].h}
+        style={{ display: 'block', transform: 'translate(-50%, -50%)' }}
+      />
+    </div>
+    </>
   )
 }

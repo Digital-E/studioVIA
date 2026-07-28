@@ -116,6 +116,23 @@ body {
   cursor: grabbing;
 }
 
+/* Desktop gets a custom hand-image cursor (rendered by InfiniteCanvas)
+   instead of the native grab/grabbing cursor above — native `cursor: url()`
+   caps out at a small, blurry raster size, so the crisp SVG hands are drawn
+   by a JS-driven overlay instead (see InfiniteCanvas.tsx). Mobile has no
+   mouse pointer, so it keeps the native fallback untouched. The `*`
+   descendant rule is needed because links get their own `cursor: pointer`
+   from the browser's UA stylesheet, which — being a rule on the link
+   itself, not an inherited value — otherwise wins over the container's
+   cursor:none. */
+@media (min-width: 768px) {
+  .canvas-container,
+  .canvas-container:active,
+  .canvas-container * {
+    cursor: none;
+  }
+}
+
 /* Hide scrollbar while keeping the element scrollable */
 .scrollbar-hide {
   -ms-overflow-style: none;
