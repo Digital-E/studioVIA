@@ -2,6 +2,116 @@
   {
     "fields": [
       {
+        "name": "h",
+        "type": "number",
+        "title": "Hue"
+      },
+      {
+        "name": "s",
+        "type": "number",
+        "title": "Saturation"
+      },
+      {
+        "name": "l",
+        "type": "number",
+        "title": "Lightness"
+      },
+      {
+        "name": "a",
+        "type": "number",
+        "title": "Alpha"
+      }
+    ],
+    "name": "hslaColor",
+    "type": "object",
+    "title": "Hue Saturation Lightness"
+  },
+  {
+    "fields": [
+      {
+        "name": "h",
+        "type": "number",
+        "title": "Hue"
+      },
+      {
+        "name": "s",
+        "type": "number",
+        "title": "Saturation"
+      },
+      {
+        "name": "v",
+        "type": "number",
+        "title": "Value"
+      },
+      {
+        "name": "a",
+        "type": "number",
+        "title": "Alpha"
+      }
+    ],
+    "name": "hsvaColor",
+    "type": "object",
+    "title": "Hue Saturation Value"
+  },
+  {
+    "fields": [
+      {
+        "name": "r",
+        "type": "number",
+        "title": "Red"
+      },
+      {
+        "name": "g",
+        "type": "number",
+        "title": "Green"
+      },
+      {
+        "name": "b",
+        "type": "number",
+        "title": "Blue"
+      },
+      {
+        "name": "a",
+        "type": "number",
+        "title": "Alpha"
+      }
+    ],
+    "name": "rgbaColor",
+    "type": "object",
+    "title": "Red Green Blue (rgb)"
+  },
+  {
+    "fields": [
+      {
+        "name": "hex",
+        "type": "string"
+      },
+      {
+        "name": "alpha",
+        "type": "number"
+      },
+      {
+        "name": "hsl",
+        "type": "hslaColor",
+        "title": "Hue Saturation Lightness"
+      },
+      {
+        "name": "hsv",
+        "type": "hsvaColor",
+        "title": "Hue Saturation Value"
+      },
+      {
+        "name": "rgb",
+        "type": "rgbaColor",
+        "title": "Red Green Blue (rgb)"
+      }
+    ],
+    "name": "color",
+    "type": "object"
+  },
+  {
+    "fields": [
+      {
         "fields": [
           {
             "rows": 3,
@@ -12,10 +122,10 @@
           },
           {
             "rows": 3,
-            "initialValue": "Architecture Practice\nZürich",
-            "name": "en",
+            "initialValue": "Cabinet d’architecture\nZürich",
+            "name": "fr",
             "type": "text",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "centerText",
@@ -315,9 +425,9 @@
                         "type": "block"
                       }
                     ],
-                    "name": "en",
+                    "name": "fr",
                     "type": "array",
-                    "title": "English"
+                    "title": "French"
                   }
                 ],
                 "name": "title",
@@ -330,6 +440,18 @@
                 "name": "backImage",
                 "type": "image",
                 "title": "Back image"
+              },
+              {
+                "description": "Leave empty for the default post-it yellow.",
+                "name": "backgroundColor",
+                "type": "color",
+                "title": "Background color"
+              },
+              {
+                "description": "Leave empty for the default text color.",
+                "name": "textColor",
+                "type": "color",
+                "title": "Text color"
               },
               {
                 "to": [
@@ -365,9 +487,9 @@
             "title": "German"
           },
           {
-            "name": "en",
+            "name": "fr",
             "type": "string",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "title",
@@ -405,9 +527,9 @@
             "title": "German"
           },
           {
-            "name": "en",
+            "name": "fr",
             "type": "string",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "location",
@@ -421,9 +543,9 @@
             "title": "German"
           },
           {
-            "name": "en",
+            "name": "fr",
             "type": "string",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "information1",
@@ -437,9 +559,9 @@
             "title": "German"
           },
           {
-            "name": "en",
+            "name": "fr",
             "type": "string",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "information2",
@@ -453,9 +575,9 @@
             "title": "German"
           },
           {
-            "name": "en",
+            "name": "fr",
             "type": "string",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "information3",
@@ -506,9 +628,9 @@
                     "title": "German"
                   },
                   {
-                    "name": "en",
+                    "name": "fr",
                     "type": "string",
-                    "title": "English"
+                    "title": "French"
                   }
                 ],
                 "name": "caption",
@@ -768,9 +890,9 @@
                                 "type": "block"
                               }
                             ],
-                            "name": "en",
+                            "name": "fr",
                             "type": "array",
-                            "title": "English"
+                            "title": "French"
                           }
                         ],
                         "name": "text",
@@ -1026,9 +1148,9 @@
                         "type": "block"
                       }
                     ],
-                    "name": "en",
+                    "name": "fr",
                     "type": "array",
-                    "title": "English"
+                    "title": "French"
                   }
                 ],
                 "name": "description",
@@ -1291,9 +1413,9 @@
                 "type": "block"
               }
             ],
-            "name": "en",
+            "name": "fr",
             "type": "array",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "leftColumn",
@@ -1542,9 +1664,9 @@
                 "type": "block"
               }
             ],
-            "name": "en",
+            "name": "fr",
             "type": "array",
-            "title": "English"
+            "title": "French"
           }
         ],
         "name": "rightColumn",

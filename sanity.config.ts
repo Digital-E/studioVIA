@@ -46,19 +46,19 @@ export default defineConfig({
           homepage: {
             locations: [
               { title: 'Homepage (DE)', href: '/de' },
-              { title: 'Homepage (EN)', href: '/en' },
+              { title: 'Homepage (FR)', href: '/fr' },
             ],
           },
           studioPage: {
             locations: [
               { title: 'Studio Page (DE)', href: '/de/studio' },
-              { title: 'Studio Page (EN)', href: '/en/studio' },
+              { title: 'Studio Page (FR)', href: '/fr/studio' },
             ],
           },
           allProjectsPage: {
             locations: [
               { title: 'All Projects Page (DE)', href: '/de/projects' },
-              { title: 'All Projects Page (EN)', href: '/en/projects' },
+              { title: 'All Projects Page (FR)', href: '/fr/projects' },
             ],
           },
           project: {
@@ -70,11 +70,11 @@ export default defineConfig({
                   href: `/de/projects/${doc?.slug}`,
                 },
                 {
-                  title: `${doc?.title ?? 'Untitled project'} (EN)`,
-                  href: `/en/projects/${doc?.slug}`,
+                  title: `${doc?.title ?? 'Untitled project'} (FR)`,
+                  href: `/fr/projects/${doc?.slug}`,
                 },
                 { title: 'All Projects Page (DE)', href: '/de/projects' },
-                { title: 'All Projects Page (EN)', href: '/en/projects' },
+                { title: 'All Projects Page (FR)', href: '/fr/projects' },
               ],
             }),
           },
