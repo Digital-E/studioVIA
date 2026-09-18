@@ -11,6 +11,8 @@ export const homepageQuery = `
       category,
       title,
       backImage { ..., asset-> },
+      backgroundColor { hex },
+      textColor { hex },
       linkedProject-> { slug }
     }
   }

@@ -1,8 +1,8 @@
-export type Locale = 'de' | 'en'
+export type Locale = 'de' | 'fr'
 
 export interface LocalizedString {
   de?: string
-  en?: string
+  fr?: string
 }
 
 export interface SanityImageRef {
@@ -24,6 +24,10 @@ export interface SanityFileRef {
   }
 }
 
+export interface SanityColor {
+  hex?: string
+}
+
 export interface CanvasItem {
   _key: string
   _type: 'canvasMedia' | 'canvasPostit'
@@ -34,8 +38,10 @@ export interface CanvasItem {
   // postit
   date?: string
   category?: string
-  title?: { de?: unknown[]; en?: unknown[] }
+  title?: { de?: unknown[]; fr?: unknown[] }
   backImage?: SanityImageRef
+  backgroundColor?: SanityColor
+  textColor?: SanityColor
   linkedProject?: { slug?: { current?: string } }
 }
 
@@ -46,7 +52,7 @@ export interface HomepageData {
 
 export interface Credit {
   _key: string
-  text?: { de?: unknown[]; en?: unknown[] }
+  text?: { de?: unknown[]; fr?: unknown[] }
 }
 
 export interface Slide {
@@ -58,7 +64,7 @@ export interface Slide {
   caption?: LocalizedString
   // text slide
   credits?: Credit[]
-  description?: { de?: unknown[]; en?: unknown[] }
+  description?: { de?: unknown[]; fr?: unknown[] }
 }
 
 export interface Project {
@@ -76,8 +82,8 @@ export interface Project {
 }
 
 export interface StudioPageData {
-  leftColumn?: { de?: unknown[]; en?: unknown[] }
-  rightColumn?: { de?: unknown[]; en?: unknown[] }
+  leftColumn?: { de?: unknown[]; fr?: unknown[] }
+  rightColumn?: { de?: unknown[]; fr?: unknown[] }
   photo?: SanityImageRef
 }
 

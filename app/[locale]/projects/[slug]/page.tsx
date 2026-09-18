@@ -24,7 +24,7 @@ export default async function ProjectPage({
 
   if (!project) notFound()
 
-  const title = locale === 'de' ? project.title.de : (project.title.en ?? project.title.de)
+  const title = locale === 'de' ? project.title.de : (project.title.fr ?? project.title.de)
 
   return (
     <main className="w-screen h-screen overflow-hidden bg-white">

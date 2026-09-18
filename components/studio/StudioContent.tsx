@@ -16,9 +16,12 @@ const richTextComponents: PortableTextComponents = {
 }
 
 export default function StudioContent({ data, locale }: StudioContentProps) {
-  const leftColumn = locale === 'de' ? data.leftColumn?.de : (data.leftColumn?.en ?? data.leftColumn?.de)
-  const rightColumn = locale === 'de' ? data.rightColumn?.de : (data.rightColumn?.en ?? data.rightColumn?.de)
+  const leftColumn = locale === 'de' ? data.leftColumn?.de : (data.leftColumn?.fr ?? data.leftColumn?.de)
+  const rightColumn = locale === 'de' ? data.rightColumn?.de : (data.rightColumn?.fr ?? data.rightColumn?.de)
   const photoUrl = data.photo ? urlFor(data.photo).width(900).url() : null
+
+  const [mobilePhotoLoaded, setMobilePhotoLoaded] = useState(false)
+  const [photoLoaded, setPhotoLoaded] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showGradient, setShowGradient] = useState(false)
@@ -65,12 +68,6 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
       <div className="md:hidden relative w-full h-full">
         <div ref={mobileScrollRef} className="studio-page w-full h-full overflow-y-auto pt-44 pb-24 px-5">
           <div className="prose-via">
-            {leftColumn && (
-              <PortableText value={leftColumn as Parameters<typeof PortableText>[0]['value']} components={richTextComponents} />
-            )}
-          </div>
-
-          <div className="prose-via mt-14">
             {rightColumn && (
               <PortableText value={rightColumn as Parameters<typeof PortableText>[0]['value']} components={richTextComponents} />
             )}
@@ -82,11 +79,18 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
                 src={photoUrl}
                 alt="Studio VIA team"
                 fill
-                className="object-cover"
+                className={`object-cover transition-opacity duration-300 ${mobilePhotoLoaded ? 'opacity-100' : 'opacity-0'}`}
                 sizes="100vw"
+                onLoad={() => setMobilePhotoLoaded(true)}
               />
             </div>
           )}
+
+          <div className="prose-via mt-8">
+            {leftColumn && (
+              <PortableText value={leftColumn as Parameters<typeof PortableText>[0]['value']} components={richTextComponents} />
+            )}
+          </div>
         </div>
 
         {mobileShowGradient && (
@@ -136,8 +140,9 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
                 src={photoUrl}
                 alt="Studio VIA team"
                 fill
-                className="object-cover"
+                className={`object-cover transition-opacity duration-300 ${photoLoaded ? 'opacity-100' : 'opacity-0'}`}
                 sizes="50vw"
+                onLoad={() => setPhotoLoaded(true)}
               />
             )}
           </div>

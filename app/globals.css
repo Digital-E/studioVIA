@@ -64,7 +64,6 @@ body {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.6s ease;
 }
 
 .postit-card:hover .postit-inner {
@@ -116,19 +115,21 @@ body {
   cursor: grabbing;
 }
 
-/* Desktop gets a custom hand-image cursor (rendered by InfiniteCanvas)
-   instead of the native grab/grabbing cursor above — native `cursor: url()`
-   caps out at a small, blurry raster size, so the crisp SVG hands are drawn
-   by a JS-driven overlay instead (see InfiniteCanvas.tsx). Mobile has no
-   mouse pointer, so it keeps the native fallback untouched. The `*`
-   descendant rule is needed because links get their own `cursor: pointer`
-   from the browser's UA stylesheet, which — being a rule on the link
-   itself, not an inherited value — otherwise wins over the container's
-   cursor:none. */
+/* Desktop gets a custom hand-image cursor (rendered by CustomCursor.tsx),
+   site-wide, instead of the native pointer — native `cursor: url()` images
+   cap out at a small, blurry raster size, so the crisp SVG hands are drawn
+   by a JS-driven overlay instead. Mobile has no mouse pointer, so it keeps
+   the native fallback untouched. Scoped to `body.custom-cursor-active`
+   (toggled by CustomCursor.tsx itself while mounted) rather than applied
+   unconditionally, since the Sanity Studio backend at /studio shares this
+   same stylesheet but never mounts the custom cursor — an unscoped rule
+   would leave it with no visible cursor at all. The `*` descendant rule is
+   needed because links/buttons get their own `cursor: pointer` from the
+   browser's UA stylesheet, which — being a rule on the element itself, not
+   an inherited value — otherwise wins over an ancestor's cursor:none. */
 @media (min-width: 768px) {
-  .canvas-container,
-  .canvas-container:active,
-  .canvas-container * {
+  body.custom-cursor-active,
+  body.custom-cursor-active * {
     cursor: none;
   }
 }
@@ -158,7 +159,7 @@ body {
 }
 
 .prose-via p + p {
-  text-indent: 4em;
+  text-indent: 1em;
   margin-top: 0;
 }
 
@@ -175,7 +176,7 @@ body {
   font-size: 1.875rem;
   line-height: 1.15;
   margin-top: 3.5rem;
-  margin-bottom: 3.5rem;
+  margin-bottom: 1rem;
 }
 
 .studio-page .prose-via h1:first-child,

@@ -26,10 +26,22 @@ const canvasPostitItem = defineArrayMember({
       title: 'Title',
       fields: [
         defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
-        defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+        defineField({ name: 'fr', type: 'array', of: [{ type: 'block' }], title: 'French' }),
       ],
     }),
     defineField({ name: 'backImage', type: 'image', title: 'Back image', options: { hotspot: true } }),
+    defineField({
+      name: 'backgroundColor',
+      type: 'color',
+      title: 'Background color',
+      description: 'Leave empty for the default post-it yellow.',
+    }),
+    defineField({
+      name: 'textColor',
+      type: 'color',
+      title: 'Text color',
+      description: 'Leave empty for the default text color.',
+    }),
     defineField({ name: 'linkedProject', type: 'reference', title: 'Linked project', to: [{ type: 'project' }] }),
   ],
   preview: { select: { title: 'category' } },
@@ -46,7 +58,7 @@ export const homepageSchema = defineType({
       title: 'Center text',
       fields: [
         defineField({ name: 'de', type: 'text', rows: 3, title: 'German', initialValue: 'Architekturbüro\nZürich' }),
-        defineField({ name: 'en', type: 'text', rows: 3, title: 'English', initialValue: 'Architecture Practice\nZürich' }),
+        defineField({ name: 'fr', type: 'text', rows: 3, title: 'French', initialValue: 'Cabinet d’architecture\nZürich' }),
       ],
     }),
     defineField({

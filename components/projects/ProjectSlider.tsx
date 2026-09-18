@@ -10,7 +10,7 @@ import type Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 import { urlFor } from '@/lib/sanity'
 import type { Slide } from '@/lib/types'
-import { lastKnownCursor } from '@/components/homepage/InfiniteCanvas'
+import { lastKnownCursor, setCursorForceHidden } from '@/components/CustomCursor'
 
 interface ProjectSliderProps {
   slides: Slide[]
@@ -45,6 +45,15 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
 
   const handleMouseLeave = useCallback(() => setSide(null), [])
 
+  // This slider draws its own "<"/">" cursor in the same spot the global
+  // hand cursor (CustomCursor.tsx) always renders on top of everything —
+  // without suppressing it here, both would show stacked on each other
+  // whenever the arrow is up.
+  useEffect(() => {
+    setCursorForceHidden(!!side)
+    return () => setCursorForceHidden(false)
+  }, [side])
+
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.plyr')) return
     if (side === 'left') swiperRef.current?.slidePrev()
@@ -58,10 +67,12 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
     >
-      {/* Custom cursor */}
+      {/* Custom cursor — desktop only; mobile/tablet have no hover, so the
+          arrow indicator would otherwise show up stuck on-screen after a
+          tap instead of tracking a mouse. */}
       {side && (
         <div
-          className="fixed pointer-events-none z-50 font-build text-3xl leading-none select-none"
+          className="hidden md:block fixed pointer-events-none z-50 font-build text-3xl leading-none select-none"
           style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }}
         >
           {side === 'left' ? '<' : '>'}
@@ -97,7 +108,7 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
 const CAPTION_OFFSET = 26 // gap-2 (8px) + text-lg leading-none (~18px)
 
 function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
-  const caption = locale === 'de' ? slide.caption?.de : (slide.caption?.en ?? slide.caption?.de)
+  const caption = locale === 'de' ? slide.caption?.de : (slide.caption?.fr ?? slide.caption?.de)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const imageARRef = useRef<number | null>(null)
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
@@ -185,7 +196,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   if (!slide.image) return null
 
-  const imageUrl = urlFor(slide.image).width(1600).url()
+  const imageUrl = urlFor(slide.image).width(3200).url()
 
   return (
     <div className="w-full h-full flex flex-col bg-white px-6 md:px-40">
@@ -195,6 +206,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
           alt=""
           width={imgSize?.w ?? 1600}
           height={imgSize?.h ?? 900}
+          quality={90}
           className={`flex-shrink-0 transition-opacity duration-300 ${ready ? 'opacity-100' : 'opacity-0'}`}
           style={!imgSize ? { maxWidth: '100%', height: 'auto' } : undefined}
           onLoad={handleLoad}
@@ -220,7 +232,7 @@ const creditComponents = {
 }
 
 function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
-  const description = locale === 'de' ? slide.description?.de : (slide.description?.en ?? slide.description?.de)
+  const description = locale === 'de' ? slide.description?.de : (slide.description?.fr ?? slide.description?.de)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showGradient, setShowGradient] = useState(false)
   const [showTopGradient, setShowTopGradient] = useState(false)
@@ -254,7 +266,7 @@ function TextSlide({ slide, locale }: { slide: Slide; locale: string }) {
             {/* Credits column */}
             <div className="order-2 md:order-1">
               {slide.credits?.map((credit) => {
-                const creditText = locale === 'de' ? credit.text?.de : (credit.text?.en ?? credit.text?.de)
+                const creditText = locale === 'de' ? credit.text?.de : (credit.text?.fr ?? credit.text?.de)
                 return (
                   <div key={credit._key} className="border-b border-black pb-0 pt-4 pb-4 first:pt-0">
                     {creditText && (

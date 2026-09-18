@@ -9,7 +9,7 @@ const mediaSlide = defineArrayMember({
     defineField({ name: 'video', type: 'file', title: 'Video (MP4)', description: 'If uploaded, this plays instead of the image.', options: { accept: 'video/*' } }),
     defineField({ name: 'caption', type: 'object', title: 'Caption (optional)', fields: [
       defineField({ name: 'de', type: 'string', title: 'German' }),
-      defineField({ name: 'en', type: 'string', title: 'English' }),
+      defineField({ name: 'fr', type: 'string', title: 'French' }),
     ]}),
   ],
   preview: {
@@ -37,7 +37,7 @@ const textSlide = defineArrayMember({
             title: 'Text',
             fields: [
               defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
-              defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+              defineField({ name: 'fr', type: 'array', of: [{ type: 'block' }], title: 'French' }),
             ],
           }),
         ],
@@ -50,7 +50,7 @@ const textSlide = defineArrayMember({
       title: 'Description',
       fields: [
         defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
-        defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+        defineField({ name: 'fr', type: 'array', of: [{ type: 'block' }], title: 'French' }),
       ],
     }),
   ],
@@ -68,7 +68,7 @@ export const projectSchema = defineType({
       title: 'Title',
       fields: [
         defineField({ name: 'de', type: 'string', title: 'German' }),
-        defineField({ name: 'en', type: 'string', title: 'English' }),
+        defineField({ name: 'fr', type: 'string', title: 'French' }),
       ],
     }),
     defineField({ name: 'slug', type: 'slug', title: 'Slug', options: { source: 'title.de' } }),
@@ -79,7 +79,7 @@ export const projectSchema = defineType({
       title: 'Location',
       fields: [
         defineField({ name: 'de', type: 'string', title: 'German' }),
-        defineField({ name: 'en', type: 'string', title: 'English' }),
+        defineField({ name: 'fr', type: 'string', title: 'French' }),
       ],
     }),
     defineField({
@@ -88,7 +88,7 @@ export const projectSchema = defineType({
       title: 'Information 1',
       fields: [
         defineField({ name: 'de', type: 'string', title: 'German' }),
-        defineField({ name: 'en', type: 'string', title: 'English' }),
+        defineField({ name: 'fr', type: 'string', title: 'French' }),
       ],
     }),
     defineField({
@@ -97,7 +97,7 @@ export const projectSchema = defineType({
       title: 'Information 2',
       fields: [
         defineField({ name: 'de', type: 'string', title: 'German' }),
-        defineField({ name: 'en', type: 'string', title: 'English' }),
+        defineField({ name: 'fr', type: 'string', title: 'French' }),
       ],
     }),
     defineField({
@@ -106,7 +106,7 @@ export const projectSchema = defineType({
       title: 'Information 3',
       fields: [
         defineField({ name: 'de', type: 'string', title: 'German' }),
-        defineField({ name: 'en', type: 'string', title: 'English' }),
+        defineField({ name: 'fr', type: 'string', title: 'French' }),
       ],
     }),
     defineField({ name: 'thumbnail', type: 'image', title: 'List thumbnail', options: { hotspot: true } }),

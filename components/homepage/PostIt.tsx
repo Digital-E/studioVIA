@@ -19,14 +19,16 @@ const titleComponents: PortableTextComponents = {
 }
 
 export default function PostIt({ item, locale }: PostItProps) {
-  const titleBlocks = locale === 'de' ? item.title?.de : (item.title?.en ?? item.title?.de)
+  const titleBlocks = locale === 'de' ? item.title?.de : (item.title?.fr ?? item.title?.de)
   const backImageUrl = item.backImage ? urlFor(item.backImage).width(600).url() : null
+  const backgroundColor = item.backgroundColor?.hex || 'var(--color-postit)'
+  const textColor = item.textColor?.hex || 'var(--color-black)'
 
   return (
     <div className="postit-card w-full h-full">
       <div className="postit-inner w-full h-full">
         {/* Front: yellow post-it */}
-        <div className="postit-front flex flex-col p-5" style={{ backgroundColor: 'var(--color-postit)' }}>
+        <div className="postit-front flex flex-col p-5" style={{ backgroundColor, color: textColor }}>
           <div className="flex justify-between items-start mb-auto">
             <span className="font-build text-[1.25rem] md:text-3xl font-medium">{item.category}</span>
             <span className="font-build text-[1.25rem] md:text-3xl">{item.date}</span>

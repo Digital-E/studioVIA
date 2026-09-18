@@ -1,6 +1,6 @@
 'use client'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { urlFor } from '@/lib/sanity'
 import type { AllProjectsYearGroup } from '@/lib/types'
@@ -9,6 +9,11 @@ import { useVideoBlobSrc } from '@/components/homepage/useVideoBlobSrc'
 interface ProjectsListProps {
   years: AllProjectsYearGroup[]
   locale: string
+}
+
+function RowLink({ href, className, children }: { href: string | null; className: string; children: React.ReactNode }) {
+  if (href) return <Link href={href} className={className}>{children}</Link>
+  return <div className={className}>{children}</div>
 }
 
 function ThumbnailVideo({ src }: { src: string }) {
@@ -29,7 +34,6 @@ function ThumbnailVideo({ src }: { src: string }) {
 }
 
 export default function ProjectsList({ years, locale }: ProjectsListProps) {
-  const router = useRouter()
   const rows = years.flatMap((group) =>
     (group.projects ?? [])
       .filter((project): project is NonNullable<typeof project> => project != null)
@@ -56,9 +60,9 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
     }
   }, [])
 
-  const yearColumnLabel = locale === 'de' ? 'JAHR' : 'YEAR'
-  const nameLabel = locale === 'de' ? 'PROJEKT NAME' : 'PROJECT NAME'
-  const locationLabel = locale === 'de' ? 'ORT' : 'LOCATION'
+  const yearColumnLabel = locale === 'de' ? 'JAHR' : 'ANNÉE'
+  const nameLabel = locale === 'de' ? 'PROJEKT NAME' : 'PROJET'
+  const locationLabel = locale === 'de' ? 'ORT' : 'LIEU'
 
   return (
     <>
@@ -73,24 +77,25 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
 
       {/* Rows */}
       {rows.map(({ project, year, isNewYear }, i) => {
-        const title = locale === 'de' ? project.title?.de : (project.title?.en ?? project.title?.de)
-        const location = locale === 'de' ? project.location?.de : (project.location?.en ?? project.location?.de)
-        const information1 = locale === 'de' ? project.information1?.de : (project.information1?.en ?? project.information1?.de)
-        const information2 = locale === 'de' ? project.information2?.de : (project.information2?.en ?? project.information2?.de)
-        const information3 = locale === 'de' ? project.information3?.de : (project.information3?.en ?? project.information3?.de)
+        const title = locale === 'de' ? project.title?.de : (project.title?.fr ?? project.title?.de)
+        const location = locale === 'de' ? project.location?.de : (project.location?.fr ?? project.location?.de)
+        const information1 = locale === 'de' ? project.information1?.de : (project.information1?.fr ?? project.information1?.de)
+        const information2 = locale === 'de' ? project.information2?.de : (project.information2?.fr ?? project.information2?.de)
+        const information3 = locale === 'de' ? project.information3?.de : (project.information3?.fr ?? project.information3?.de)
 
         const thumbnailVideoUrl = project.thumbnailVideo?.asset?.url
         const thumbnailUrl = project.thumbnail
           ? urlFor(project.thumbnail).width(480).url()
           : null
 
-        const clickable = !!project.slug?.current
+        const href = project.slug?.current ? `/${locale}/projects/${project.slug.current}` : null
+        const rowClassName = `group flex md:grid md:grid-cols-12 border-b border-black items-start min-h-[65px] md:min-h-[160px] ${i === 0 ? 'border-t md:border-t-0' : ''} ${href ? 'cursor-pointer' : ''}`
 
         return (
-          <div
+          <RowLink
             key={`${project._id}-${i}`}
-            className={`group flex md:grid md:grid-cols-12 border-b border-black items-start h-[65px] md:h-[160px] ${i === 0 ? 'border-t md:border-t-0' : ''} ${clickable ? 'cursor-pointer' : ''}`}
-            onClick={clickable ? () => router.push(`/${locale}/projects/${project.slug.current}`) : undefined}
+            href={href}
+            className={rowClassName}
           >
             <div className="w-14 flex-shrink-0 md:w-auto md:col-span-2 font-build text-[1rem] md:text-3xl leading-none py-[0.35rem] md:py-[0.9rem]">{isNewYear ? year : ''}</div>
             <div className="flex-1 md:col-span-5 font-build text-[1rem] md:text-3xl leading-none pl-4 md:pl-0 pr-4 md:pr-6 py-[0.35rem] md:py-[0.9rem] group-hover:text-via-gray">
@@ -118,7 +123,7 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
                 </div>
               ) : null}
             </div>
-          </div>
+          </RowLink>
         )
       })}
     </div>

@@ -2,6 +2,7 @@ import { defineConfig } from 'sanity'
 import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
 import { presentationTool } from 'sanity/presentation'
+import { colorInput } from '@sanity/color-input'
 import { schemas } from './sanity/schemas'
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? 'r0r7pkb1'
@@ -33,6 +34,7 @@ export default defineConfig({
           ]),
     }),
     visionTool(),
+    colorInput(),
     presentationTool({
       previewUrl: {
         previewMode: {

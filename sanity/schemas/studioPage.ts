@@ -11,7 +11,7 @@ export const studioPageSchema = defineType({
       title: 'Left column',
       fields: [
         defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
-        defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+        defineField({ name: 'fr', type: 'array', of: [{ type: 'block' }], title: 'French' }),
       ],
     }),
     defineField({
@@ -20,7 +20,7 @@ export const studioPageSchema = defineType({
       title: 'Right column',
       fields: [
         defineField({ name: 'de', type: 'array', of: [{ type: 'block' }], title: 'German' }),
-        defineField({ name: 'en', type: 'array', of: [{ type: 'block' }], title: 'English' }),
+        defineField({ name: 'fr', type: 'array', of: [{ type: 'block' }], title: 'French' }),
       ],
     }),
     defineField({ name: 'photo', type: 'image', title: 'Team photo', options: { hotspot: true } }),

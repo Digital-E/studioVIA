@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { HOME_TILES_REVEAL_TOTAL_MS, hasRevealedThisSession, lastKnownCursor } from './homepage/InfiniteCanvas'
+import { HOME_TILES_REVEAL_TOTAL_MS, hasRevealedThisSession } from './homepage/InfiniteCanvas'
 
 interface NavigationProps {
   locale: string
@@ -41,47 +41,14 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
     ? { opacity: navRevealed ? 1 : 0, transition: 'opacity 0.6s ease' }
     : undefined
 
-  // InfiniteCanvas (the custom hand cursor's owner) only exists on the
-  // homepage, so its own tracking pauses entirely while browsing any other
-  // page — without this, lastKnownCursor would stay frozen at wherever the
-  // pointer was when the user last left the homepage, and returning here
-  // (nav click, back button) would restore the cursor to that stale spot
-  // instead of the pointer's actual current position, until the next move.
-  useEffect(() => {
-    if (isHome) return
-    const track = (x: number, y: number, target: EventTarget | null) => {
-      lastKnownCursor.x = x
-      lastKnownCursor.y = y
-      lastKnownCursor.shown = true
-      lastKnownCursor.mode = (target as HTMLElement)?.closest?.('a') ? 'link' : 'idle'
-    }
-    const onMove = (e: MouseEvent) => track(e.clientX, e.clientY, e.target)
-    const onEnter = (e: MouseEvent) => track(e.clientX, e.clientY, e.target)
-    const onLeave = () => { lastKnownCursor.shown = false }
-    window.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseenter', onEnter)
-    document.addEventListener('mouseleave', onLeave)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseenter', onEnter)
-      document.removeEventListener('mouseleave', onLeave)
-    }
-  }, [isHome])
-
   const projectsHref = `/${locale}/projects`
   const studioHref = `/${locale}/studio`
   const homeHref = `/${locale}`
 
   const deHref = pathname.replace(`/${locale}`, '/de')
-  const enHref = pathname.replace(`/${locale}`, '/en')
+  const frHref = pathname.replace(`/${locale}`, '/fr')
 
   const blend = isHome ? 'text-black' : ''
-  // On the homepage, InfiniteCanvas renders a custom hand cursor that
-  // replaces the native one over the canvas — nav links need the same
-  // treatment, or the native pointer cursor reappears the moment the mouse
-  // crosses onto a nav link. Other pages have no custom cursor to swap in,
-  // so they keep the native pointer.
-  const homeCursor = isHome ? 'md:cursor-none' : ''
 
   return (
     <>
@@ -98,15 +65,15 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
         className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between p-5 pointer-events-none"
         style={navRevealStyle}
       >
-        <Link href={homeHref} className={`font-build text-3xl md:text-4xl tracking-tight pointer-events-auto ${blend} ${homeCursor}`}>
+        <Link href={homeHref} className={`font-build text-3xl md:text-4xl tracking-tight uppercase pointer-events-auto ${blend}`}>
           VIA
         </Link>
-        <div className={`flex gap-5 font-build text-xl md:text-2xl pointer-events-auto ${blend} ${homeCursor}`}>
-          <Link href={deHref} className={`${homeCursor} ${locale === 'de' ? 'underline underline-offset-2' : ''}`}>
+        <div className={`flex gap-5 font-build text-xl md:text-2xl uppercase pointer-events-auto ${blend}`}>
+          <Link href={deHref} className={locale === 'de' ? 'underline underline-offset-2' : ''}>
             DE
           </Link>
-          <Link href={enHref} className={`${homeCursor} ${locale === 'en' ? 'underline underline-offset-2' : ''}`}>
-            EN
+          <Link href={frHref} className={locale === 'fr' ? 'underline underline-offset-2' : ''}>
+            FR
           </Link>
         </div>
       </nav>
@@ -118,13 +85,13 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
       >
         <Link
           href={projectsHref}
-          className={`font-build text-3xl md:text-4xl pointer-events-auto ${blend} ${homeCursor} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl md:text-4xl uppercase pointer-events-auto ${blend} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
         >
-          {locale === 'de' ? 'Projekte' : 'Projects'}
+          {locale === 'de' ? 'Projekte' : 'Projets'}
         </Link>
         <Link
           href={studioHref}
-          className={`font-build text-3xl md:text-4xl pointer-events-auto ${blend} ${homeCursor} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl md:text-4xl uppercase pointer-events-auto ${blend} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
         >
           Studio
         </Link>

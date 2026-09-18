@@ -1178,7 +1178,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
 
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
-  const displayText = locale === 'de' ? centerText?.de : (centerText?.en ?? centerText?.de)
+  const displayText = locale === 'de' ? centerText?.de : (centerText?.fr ?? centerText?.de)
   const lines = displayText?.split('\n') ?? []
 
   return (
