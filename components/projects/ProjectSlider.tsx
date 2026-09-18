@@ -105,49 +105,17 @@ export default function ProjectSlider({ slides, locale }: ProjectSliderProps) {
   )
 }
 
-const CAPTION_OFFSET = 26 // gap-2 (8px) + text-lg leading-none (~18px)
-
 function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
   const caption = locale === 'de' ? slide.caption?.de : (slide.caption?.fr ?? slide.caption?.de)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const imageARRef = useRef<number | null>(null)
-  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
-
-  const [ready, setReady] = useState(false)
-  const rafRef = useRef<number | null>(null)
-
-  const computeSize = useCallback(() => {
-    const el = wrapperRef.current
-    const ar = imageARRef.current
-    if (!el || !ar) return
-    const availW = el.clientWidth
-    const availH = el.clientHeight - (caption ? CAPTION_OFFSET : 0)
-    const newSize = availW / availH > ar
-      ? { w: Math.round(availH * ar), h: availH }
-      : { w: availW, h: Math.round(availW / ar) }
-    setImgSize(newSize)
-    // Let the size paint first, then fade in
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => setReady(true))
-  }, [caption])
-
-  useEffect(() => {
-    const el = wrapperRef.current
-    if (!el) return
-    const ro = new ResizeObserver(computeSize)
-    ro.observe(el)
-    return () => {
-      ro.disconnect()
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    }
-  }, [computeSize])
-
-  const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget
-    // naturalWidth/naturalHeight reflect the CDN-served image after crop is applied
-    imageARRef.current = img.naturalWidth / img.naturalHeight
-    computeSize()
-  }, [computeSize])
+  // Sanity computes image metadata on upload, so the aspect ratio is known
+  // upfront. Using it as a CSS aspect-ratio (rather than measuring the
+  // wrapper with JS and setting pixel dimensions in an effect) means the
+  // placeholder box is already the right size in the server-rendered HTML,
+  // before hydration — a plain page load/refresh has no client JS to wait
+  // on, so there's no late-appearing or wrongly-sized flash beforehand.
+  const imageAR = slide.image?.asset?.metadata?.dimensions?.aspectRatio ?? 16 / 9
+  const [loaded, setLoaded] = useState(false)
+  const handleLoad = useCallback(() => setLoaded(true), [])
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoUrl = slide.video?.asset?.url
@@ -181,7 +149,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   if (videoUrl) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-2 px-6 md:px-40">
+      <div className={`w-full h-full flex flex-col items-center justify-center gap-2 px-6 md:px-40 transition-colors duration-300 ${videoReady ? 'bg-white' : 'bg-gray-100'}`}>
         <video
           ref={videoRef}
           src={videoUrl}
@@ -200,25 +168,33 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-white px-6 md:px-40">
-      <div ref={wrapperRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
-        <Image
-          src={imageUrl}
-          alt=""
-          width={imgSize?.w ?? 1600}
-          height={imgSize?.h ?? 900}
-          quality={90}
-          className={`flex-shrink-0 transition-opacity duration-300 ${ready ? 'opacity-100' : 'opacity-0'}`}
-          style={!imgSize ? { maxWidth: '100%', height: 'auto' } : undefined}
-          onLoad={handleLoad}
-          priority
-          draggable={false}
-        />
-        {caption && (
-          <p className="font-build text-lg leading-none text-via-black text-center flex-shrink-0">
-            {caption}
-          </p>
-        )}
+      <div className="flex-1 min-h-0 flex items-center justify-center" style={{ containerType: 'size' }}>
+        <div
+          className={`relative transition-colors duration-300 ${loaded ? '' : 'bg-gray-100'}`}
+          style={{
+            aspectRatio: imageAR,
+            width: `min(100cqw, ${imageAR} * 100cqh)`,
+            height: `min(100cqh, 100cqw / ${imageAR})`,
+          }}
+        >
+          <Image
+            src={imageUrl}
+            alt=""
+            fill
+            sizes="(min-width: 768px) 80vw, 100vw"
+            quality={90}
+            className={`object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={handleLoad}
+            priority
+            draggable={false}
+          />
+        </div>
       </div>
+      {caption && (
+        <p className="font-build text-lg leading-none text-via-black text-center flex-shrink-0 pt-2">
+          {caption}
+        </p>
+      )}
     </div>
   )
 }
