@@ -280,24 +280,20 @@ function neighborVariant(v: number, dx: number, dy: number): number {
   return nax * VARIANT_GRID + nay
 }
 
-// ── pass 1+2: place every item for one variant (cell, size, jitter) ────────
-// Collision resolution happens afterward, once all 4 variants are placed —
-// see buildAllLayouts.
-function placeVariant(
+// ── pass 1: place every item for one variant (cell + size only) ────────────
+// Jitter/postit-targeting (the old "pass 2") now happens afterward, once
+// every variant's cells are known and cross-tile boundary conflicts have
+// been resolved — see resolveBoundaryAdjacency and buildAllLayouts. Overlap
+// resolution proper still happens after that, once all variants are placed.
+function placeVariantCells(
   items: CanvasItemType[],
   variant: number,
   seed: string,
   grid: { cols: number; rows: number; tileW: number; tileH: number },
   c: SizeConstants,
-): { placed: Placed[]; cellToPlacedIndex: Map<number, number> } {
-  const { cols, rows, tileW, tileH } = grid
+): Placed[] {
+  const { cols, rows } = grid
   const { defaultW, edgeMargin, cellW, cellH } = c
-
-  // Offset alternating cells (checkerboard, by row+col parity) so same-row and
-  // same-column neighbors don't share an exact baseline — a soft bias that
-  // makes any overlap read as a corner rather than a full-edge strip.
-  const staggerX = cellW * STAGGER_FRAC
-  const staggerY = cellH * STAGGER_FRAC
 
   // Postits sort first (ties broken by the usual random order) so they claim
   // whichever cells are prioritized below — normally that's a no-op, but
@@ -371,24 +367,47 @@ function placeVariant(
   // pool's source for a repeat).
   const remainingCells = [...cellIndices]
   const usedCellsByItemKey = new Map<string, number[]>()
+  // Postits are tracked as a group, not just per-itemKey like everything
+  // else — there's normally more than one distinct postit (e.g. "ZÜGELTAG"
+  // and "NEWS"), and without this, nothing stops two different postits from
+  // landing in neighboring cells: the per-itemKey check above only keeps an
+  // item away from *its own* repeats.
+  const usedPostitCells: number[] = []
   const cellsAreNear = (a: number, b: number) => {
     const ca = a % cols, ra = Math.floor(a / cols)
     const cb = b % cols, rb = Math.floor(b / cols)
     return Math.abs(ca - cb) <= 1 && Math.abs(ra - rb) <= 1
   }
-  const pickCellFor = (itemKey: string): number => {
+  // Two postits sharing a single neighboring image cell (each reaching for
+  // it from opposite sides in pass 2b) is what actually drives postit/postit
+  // overlap — not just them sitting in literally touching cells. That can
+  // only happen when their home cells are within Chebyshev distance 2 of
+  // each other (so some third cell is adjacent to both), so postits need a
+  // wider exclusion zone than the distance-1 check used everywhere else.
+  const cellsAreNearForPostits = (a: number, b: number) => {
+    const ca = a % cols, ra = Math.floor(a / cols)
+    const cb = b % cols, rb = Math.floor(b / cols)
+    return Math.abs(ca - cb) <= 2 && Math.abs(ra - rb) <= 2
+  }
+  const pickCellFor = (itemKey: string, isPostit: boolean): number => {
     const used = usedCellsByItemKey.get(itemKey) ?? []
-    let pickAt = remainingCells.findIndex((c) => !used.some((u) => cellsAreNear(c, u)))
+    let pickAt = -1
+    if (isPostit) {
+      pickAt = remainingCells.findIndex((c) => !usedPostitCells.some((u) => cellsAreNearForPostits(c, u)))
+      if (pickAt === -1) pickAt = remainingCells.findIndex((c) => !usedPostitCells.some((u) => cellsAreNear(c, u)))
+    } else {
+      pickAt = remainingCells.findIndex((c) => !used.some((u) => cellsAreNear(c, u)))
+    }
     if (pickAt === -1) pickAt = 0 // no conflict-free cell left — take the next one anyway rather than fail
     const cellIndex = remainingCells.splice(pickAt, 1)[0]
     used.push(cellIndex)
     usedCellsByItemKey.set(itemKey, used)
+    if (isPostit) usedPostitCells.push(cellIndex)
     return cellIndex
   }
 
   // ── pass 1: assign each item's cell, size, and base (unjittered) center ────
   const placed: Placed[] = []
-  const cellToPlacedIndex = new Map<number, number>()
 
   slots.forEach(({ item, placementKey }) => {
     // Postits are a fixed UI card sized off DEFAULT_W directly; every other
@@ -413,13 +432,12 @@ function placeVariant(
       h = Math.round(h * scale)
     }
 
-    const cellIndex = pickCellFor(item._key)
+    const cellIndex = pickCellFor(item._key, item._type === 'canvasPostit')
     const col = cellIndex % cols
     const row = Math.floor(cellIndex / cols)
     const baseCX = edgeMargin + (col + 0.5) * cellW
     const baseCY = edgeMargin + (row + 0.5) * cellH
 
-    cellToPlacedIndex.set(cellIndex, placed.length)
     placed.push({
       key: placementKey,
       itemKey: item._key,
@@ -431,6 +449,29 @@ function placeVariant(
       t: 1,
     })
   })
+
+  return placed
+}
+
+// ── pass 2: jitter + postit-targeting for one variant's already-final cells ─
+// Split out from placeVariantCells so cross-tile boundary conflicts (see
+// resolveBoundaryAdjacency) can be resolved — by swapping which cell an item
+// sits in — after every variant's cells are known but before any jitter or
+// postit-targeting math runs off of them.
+function applyJitterAndPostits(
+  placed: Placed[],
+  variant: number,
+  seed: string,
+  grid: { cols: number; rows: number; tileW: number; tileH: number },
+  c: SizeConstants,
+) {
+  const { cols, rows, tileW, tileH } = grid
+  const { cellW, cellH } = c
+  const staggerX = cellW * STAGGER_FRAC
+  const staggerY = cellH * STAGGER_FRAC
+
+  const cellToPlacedIndex = new Map<number, number>()
+  placed.forEach((p, i) => cellToPlacedIndex.set(p.row * cols + p.col, i))
 
   // ── pass 2a: jitter for every non-postit item ─────────────────────────────
   // Postits are handled separately below, once every other item's position
@@ -510,8 +551,114 @@ function placeVariant(
       ? (nCY - dr * neighbor.h / 4) - p.baseCY
       : nCY - p.baseCY
   })
+}
 
-  return { placed, cellToPlacedIndex }
+// ── resolve duplicate/postit adjacency across tile boundaries ──────────────
+// Within one tile, pickCellFor already keeps a repeated item's filler copy
+// (and distinct postits) away from each other. But each variant is placed
+// independently, so nothing stops variant A's real placement of item X from
+// landing on its tile's edge right where variant B (a neighboring tile)
+// independently places its own copy of that same X — or a different postit —
+// right across the border. Two copies of the same photo, or two different
+// postit cards, then end up visually adjacent even though neither tile's own
+// layout put them there.
+//
+// Every variant shares the exact same cell grid (cols/rows/cellW/cellH), so
+// a cell's position relative to its tile's edge fully determines which cell
+// of which neighboring variant actually borders it in the infinite plane —
+// this walks every such bordering pair and, on conflict, swaps the offending
+// item into a different (preferably interior) cell within its own variant,
+// repeating until no boundary conflict remains or a bail-out limit is hit.
+function resolveBoundaryAdjacency(
+  allPlaced: Placed[][],
+  grid: { cols: number; rows: number },
+) {
+  const { cols, rows } = grid
+
+  // Each undirected tile-to-tile boundary only needs to be visited once —
+  // these 4 "forward" offsets (right, down, down-right, up-right), applied
+  // from every variant, cover every one of the 8 neighbor directions exactly
+  // once across the whole canvas.
+  const DIRECTIONS: [number, number][] = [[1, 0], [0, 1], [1, 1], [1, -1]]
+
+  // Cell-index distance across this boundary, for every in-bounds (k1,k2)
+  // offset-from-the-seam pair whose total distance is `dist` — k1 steps back
+  // from v's own edge, k2 steps in from nv's edge. dist=1 is the two tiles'
+  // literal touching cells; dist=2 is one cell further apart, which (same
+  // reasoning as cellsAreNearForPostits above) is the actual minimum needed
+  // for a real gap, not just "not the identical cell".
+  const borderingCells = (dx: number, dy: number, dist: number): [number, number, number, number][] => {
+    const out: [number, number, number, number][] = []
+    for (let k1 = 0; k1 < dist; k1++) {
+      const k2 = dist - 1 - k1
+      if (dx === 1 && dy === 0) {
+        for (let r = 0; r < rows; r++) out.push([cols - 1 - k1, r, k2, r])
+      } else if (dx === 0 && dy === 1) {
+        for (let c = 0; c < cols; c++) out.push([c, rows - 1 - k1, c, k2])
+      } else if (dx === 1 && dy === 1) {
+        out.push([cols - 1 - k1, rows - 1 - k1, k2, k2])
+      } else { // dx === 1 && dy === -1
+        out.push([cols - 1 - k1, k1, k2, rows - 1 - k2])
+      }
+    }
+    return out
+  }
+
+  const conflicts = (a: Placed, b: Placed) => a.itemKey === b.itemKey || (a.isPostit && b.isPostit)
+  const isEdgeCell = (p: Placed) => p.col === 0 || p.col === cols - 1 || p.row === 0 || p.row === rows - 1
+
+  for (let iter = 0; iter < 20; iter++) {
+    let changed = false
+    for (const [dx, dy] of DIRECTIONS) {
+      for (let v = 0; v < N_VARIANTS; v++) {
+        const nv = neighborVariant(v, dx, dy)
+        // Any item touching cells (dist=1) conflicts; two postits also
+        // conflict one cell further apart (dist=2) — see borderingCells.
+        const candidatePairs = [
+          ...borderingCells(dx, dy, 1).map((cells) => ({ cells, postitOnly: false })),
+          ...borderingCells(dx, dy, 2).map((cells) => ({ cells, postitOnly: true })),
+        ]
+        for (const { cells: [ca, ra, cb, rb], postitOnly } of candidatePairs) {
+          const pool = allPlaced[v]
+          const a = pool.find((p) => p.col === ca && p.row === ra)
+          const b = allPlaced[nv].find((p) => p.col === cb && p.row === rb)
+          if (!a || !b) continue
+          if (postitOnly ? !(a.isPostit && b.isPostit) : !conflicts(a, b)) continue
+
+          // Relocate `a` within its own variant — prefer an interior cell
+          // (away from every edge) holding a genuinely different item, so
+          // the fix doesn't just trade which edge the conflict sits on.
+          // The swap must also not create a *new* postit/postit adjacency —
+          // in either direction: if `a` itself is a postit, its new cell
+          // (candidate's old one) must clear every other postit already in
+          // this variant; and since a postit only "conflicts" with `b` when
+          // `b` is also a postit, a postit can legally be chosen as the
+          // candidate for fixing some unrelated (non-postit) conflict — in
+          // which case IT moves into a's old cell, which must equally clear
+          // every other postit. Checking only the first direction (as an
+          // earlier version of this did) left the second one free to swap a
+          // postit right next to this tile's other postit as a side effect
+          // of fixing a duplicate-image conflict elsewhere.
+          const near = (c1: number, r1: number, c2: number, r2: number) => Math.abs(c1 - c2) <= 1 && Math.abs(r1 - r2) <= 1
+          const swapCreatesPostitAdjacency = (p: Placed) =>
+            (a.isPostit && pool.some((op) => op.isPostit && op !== a && op !== p && near(op.col, op.row, p.col, p.row))) ||
+            (p.isPostit && pool.some((op) => op.isPostit && op !== a && op !== p && near(op.col, op.row, a.col, a.row)))
+          const candidate =
+            pool.find((p) => p !== a && p.itemKey !== a.itemKey && !conflicts(p, b) && !isEdgeCell(p) && !swapCreatesPostitAdjacency(p)) ??
+            pool.find((p) => p !== a && !conflicts(p, b) && !isEdgeCell(p) && !swapCreatesPostitAdjacency(p)) ??
+            pool.find((p) => p !== a && !conflicts(p, b) && !swapCreatesPostitAdjacency(p)) ??
+            pool.find((p) => p !== a && !conflicts(p, b))
+          if (!candidate) continue
+
+          const col = a.col, row = a.row, baseCX = a.baseCX, baseCY = a.baseCY
+          a.col = candidate.col; a.row = candidate.row; a.baseCX = candidate.baseCX; a.baseCY = candidate.baseCY
+          candidate.col = col; candidate.row = row; candidate.baseCX = baseCX; candidate.baseCY = baseCY
+          changed = true
+        }
+      }
+    }
+    if (!changed) break
+  }
 }
 
 // ── build & resolve all 4 variants together ───────────────────────────────
@@ -531,8 +678,15 @@ function buildAllLayouts(
 
   const allPlaced: Placed[][] = []
   for (let v = 0; v < N_VARIANTS; v++) {
-    const { placed } = placeVariant(items, v, seed, grid, c)
-    allPlaced.push(placed)
+    allPlaced.push(placeVariantCells(items, v, seed, grid, c))
+  }
+
+  // Fix any same-item or postit-postit adjacency across tile boundaries
+  // before computing jitter/postit-targeting, which depend on final cells.
+  resolveBoundaryAdjacency(allPlaced, { cols: grid.cols, rows: grid.rows })
+
+  for (let v = 0; v < N_VARIANTS; v++) {
+    applyJitterAndPostits(allPlaced[v], v, seed, grid, c)
   }
 
   const boxOf = (p: Placed, dx: number, dy: number) => {
@@ -573,6 +727,11 @@ function buildAllLayouts(
   const ord = (r: Ref) => r.v * 1_000_000 + r.i
   const getPlaced = (r: Ref) => allPlaced[r.v][r.i]
 
+  // Two postits need to end up at least this far apart (see capFor/violatesFor
+  // below) — declared up here because couldOverlap also needs it: a pair
+  // that will never literally touch can still end up closer than this.
+  const MIN_POSTIT_GAP = 32 // px — enough to read as two distinct cards, not a seam
+
   // Constraints are built from ACTUAL geometry, not grid-cell adjacency: a
   // postit is deliberately shoved across a cell boundary and can stick out
   // far enough to overlap an item whose home cell isn't adjacent to its own,
@@ -586,9 +745,16 @@ function buildAllLayouts(
   type NBox = { ref: Ref; dx: number; dy: number }
 
   const couldOverlap = (A: NBox, B: NBox) => {
-    const a = sweptBox(getPlaced(A.ref), A.dx, A.dy)
-    const b = sweptBox(getPlaced(B.ref), B.dx, B.dy)
-    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+    const pa = getPlaced(A.ref), pb = getPlaced(B.ref)
+    const a = sweptBox(pa, A.dx, A.dy)
+    const b = sweptBox(pb, B.dx, B.dy)
+    // Two postits must clear MIN_POSTIT_GAP, not just avoid touching — a
+    // pair whose swept regions never literally intersect could still end up
+    // closer than that, so inflate `a` by the required margin before testing
+    // (the standard Minkowski-sum way to ask "could these end up within gap
+    // px of each other", not just "could these overlap").
+    const pad = (pa.isPostit && pb.isPostit) ? MIN_POSTIT_GAP : 0
+    return a.left - pad < b.right && b.left < a.right + pad && a.top - pad < b.bottom && b.top < a.bottom + pad
   }
 
   const neighborhood = (vc: number): { center: NBox[]; all: NBox[] } => {
@@ -688,33 +854,74 @@ function buildAllLayouts(
     members.forEach((m, i2) => { m.t = bases[i2] * lo })
   }
 
-  for (let iter = 0; iter < 40; iter++) {
-    let changed = false
-    for (const { a, b, dx, dy } of pairs) {
-      const A = getPlaced(a), B = getPlaced(b)
-      if (overlapFrac(A, B, dx, dy) > MAX_OVERLAP_FRAC) {
-        scaleToSatisfy([A, B], () => overlapFrac(A, B, dx, dy) > MAX_OVERLAP_FRAC)
-        changed = true
-      }
+  // Two postit cards overlapping each other is never the intentional "note
+  // pinned on a photo" accent (pass 2b only ever aims a postit at an image
+  // neighbor) — it only happens when two different postits independently
+  // aim at the *same* shared neighboring photo from opposite sides and
+  // converge on each other. That isn't caught by cell-adjacency avoidance
+  // (resolveBoundaryAdjacency / pickCellFor) since their home cells can be
+  // two cells apart, not touching. So unlike every other pair, which tolerates
+  // up to MAX_OVERLAP_FRAC, a postit/postit pair gets zero tolerance here.
+  // A postit/postit pair's cap is a hair above zero, not exactly zero —
+  // integer-rounded box sizes (w,h) against a fractional cellW/cellH can
+  // leave a sub-pixel (<1px) residual even with both items fully suppressed
+  // to their own cell centers. Treating that as "still violating" would make
+  // overlapDegree below count it as a real overlap it isn't.
+  const POSTIT_OVERLAP_EPS = 0.004
+
+  // Straight-line gap between two boxes: negative while overlapping, 0 when
+  // exactly touching, positive once separated (diagonal distance if neither
+  // axis alone separates them, otherwise the larger of the two axis gaps).
+  const boxGap = (A: { left: number; right: number; top: number; bottom: number }, B: typeof A) => {
+    const gx = Math.max(A.left - B.right, B.left - A.right)
+    const gy = Math.max(A.top - B.bottom, B.top - A.bottom)
+    return (gx > 0 && gy > 0) ? Math.sqrt(gx * gx + gy * gy) : Math.max(gx, gy)
+  }
+
+  // "No overlap" alone isn't the goal for two postits — scaleToSatisfy finds
+  // the *largest* t that doesn't violate its cap, which for a plain overlap
+  // cap converges to "just barely not overlapping", i.e. touching, exactly
+  // the "stuck together" look this is meant to prevent. So postit/postit
+  // pairs are resolved against a minimum real gap instead of an overlap cap
+  // (MIN_POSTIT_GAP, declared above alongside couldOverlap); every other
+  // pair keeps the ordinary overlap-fraction cap (including the deliberate
+  // postit-on-photo accent, which only ever targets an image).
+  const violatesFor = (a: Placed, b: Placed, dx: number, dy: number): boolean => {
+    if (a.isPostit && b.isPostit) {
+      return boxGap(boxOf(a, 0, 0), boxOf(b, dx, dy)) < MIN_POSTIT_GAP
     }
-    for (const tr of triples) {
-      if (tripleOverlaps(tr)) {
-        scaleToSatisfy(tr.refs.map(getPlaced), () => tripleOverlaps(tr))
-        changed = true
+    return overlapFrac(a, b, dx, dy) > MAX_OVERLAP_FRAC
+  }
+
+  const resolvePairsAndTriples = () => {
+    let everChanged = false
+    for (let iter = 0; iter < 40; iter++) {
+      let changed = false
+      for (const { a, b, dx, dy } of pairs) {
+        const A = getPlaced(a), B = getPlaced(b)
+        if (violatesFor(A, B, dx, dy)) {
+          scaleToSatisfy([A, B], () => violatesFor(A, B, dx, dy))
+          changed = true
+        }
       }
+      for (const tr of triples) {
+        if (tripleOverlaps(tr)) {
+          scaleToSatisfy(tr.refs.map(getPlaced), () => tripleOverlaps(tr))
+          changed = true
+        }
+      }
+      if (changed) everChanged = true
+      if (!changed) break
     }
-    if (!changed) break
+    return everChanged
   }
 
   // Cap how many neighbors a single item can simultaneously overlap at 1.
-  // The checks above only forbid a single pair exceeding MAX_OVERLAP_FRAC or
-  // a literal 3-way common intersection point — neither stops item B from
+  // The checks above only forbid a single pair exceeding its own cap or a
+  // literal 3-way common intersection point — neither stops item B from
   // overlapping A on one side and C on the other (a "chain" where no single
   // point is shared by all three), which still reads as a cluster of 3+
-  // overlapping tiles. Shrinking the offending item's own t toward its safe
-  // t=0 cell center (not its neighbors') can only ever reduce — never
-  // increase — how much it, or anyone measuring against it, overlaps, so
-  // this can't undo the resolution above or introduce new violations.
+  // overlapping tiles.
   const adjacency = new Map<number, { other: Ref; dx: number; dy: number }[]>()
   const addEdge = (ref: Ref, other: Ref, dx: number, dy: number) => {
     const k = ord(ref)
@@ -734,28 +941,47 @@ function buildAllLayouts(
     const P = getPlaced(ref)
     let count = 0
     for (const e of adjacency.get(ord(ref)) ?? []) {
-      if (overlapFrac(P, getPlaced(e.other), e.dx, e.dy) > 0) count++
+      if (overlapFrac(P, getPlaced(e.other), e.dx, e.dy) > POSTIT_OVERLAP_EPS) count++
     }
     return count
   }
 
-  for (let iter = 0; iter < 40; iter++) {
-    let changed = false
-    for (const k of adjacency.keys()) {
-      const ref = refOf.get(k)!
-      if (overlapDegree(ref) <= 1) continue
-      const P = getPlaced(ref)
-      const base = P.t
-      let lo = 0, hi = base
-      for (let i = 0; i < 25; i++) {
-        const mid = (lo + hi) / 2
-        P.t = mid
-        if (overlapDegree(ref) > 1) hi = mid; else lo = mid
+  const resolveDegree = () => {
+    let everChanged = false
+    for (let iter = 0; iter < 40; iter++) {
+      let changed = false
+      for (const k of adjacency.keys()) {
+        const ref = refOf.get(k)!
+        if (overlapDegree(ref) <= 1) continue
+        const P = getPlaced(ref)
+        const base = P.t
+        let lo = 0, hi = base
+        for (let i = 0; i < 25; i++) {
+          const mid = (lo + hi) / 2
+          P.t = mid
+          if (overlapDegree(ref) > 1) hi = mid; else lo = mid
+        }
+        P.t = lo
+        changed = true
       }
-      P.t = lo
-      changed = true
+      if (changed) everChanged = true
+      if (!changed) break
     }
-    if (!changed) break
+    return everChanged
+  }
+
+  // Degree-capping shrinks one item's own t — independently of whatever
+  // other item it was already paired against — to clear a *third* overlap.
+  // That can walk it back into violating a pair that the loop above had
+  // already resolved: overlap isn't monotonic in either item's t alone (see
+  // sweptBox above), only in the *joint* scaling scaleToSatisfy solved for,
+  // so shrinking just one side can reopen it. Re-running pair/triple
+  // resolution after any degree-capping change, and repeating until a full
+  // cycle changes nothing, catches that instead of assuming one pass of each
+  // is enough.
+  for (let cycle = 0; cycle < 10; cycle++) {
+    resolvePairsAndTriples()
+    if (!resolveDegree()) break
   }
 
   return allPlaced.map((placed) => {
