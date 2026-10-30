@@ -65,7 +65,7 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
         className="fixed top-0 left-0 right-0 z-50 flex items-start justify-between p-5 pointer-events-none"
         style={navRevealStyle}
       >
-        <Link href={homeHref} className={`font-build text-3xl md:text-4xl tracking-tight uppercase pointer-events-auto ${blend}`}>
+        <Link href={homeHref} className={`font-build text-3xl tracking-tight uppercase pointer-events-auto ${blend}`}>
           VIA
         </Link>
         <div className={`flex gap-5 font-build text-xl md:text-2xl uppercase pointer-events-auto ${blend}`}>
@@ -85,13 +85,13 @@ export default function Navigation({ locale, activePage, isHome = false, topGrad
       >
         <Link
           href={projectsHref}
-          className={`font-build text-3xl md:text-4xl uppercase pointer-events-auto ${blend} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl uppercase pointer-events-auto ${blend} ${activePage === 'projects' ? 'nav-link-active' : ''}`}
         >
           {locale === 'de' ? 'Projekte' : 'Projets'}
         </Link>
         <Link
           href={studioHref}
-          className={`font-build text-3xl md:text-4xl uppercase pointer-events-auto ${blend} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
+          className={`font-build text-3xl uppercase pointer-events-auto ${blend} ${activePage === 'studio' ? 'nav-link-active' : ''}`}
         >
           Studio
         </Link>

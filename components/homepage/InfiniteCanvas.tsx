@@ -68,6 +68,7 @@ const N_VARIANTS  = VARIANT_GRID * VARIANT_GRID
 const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
 const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a fixed UI card, not a photo)
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
+const POSTIT_SCALE = 0.8 // postits render 20% smaller than DEFAULT_W alone would give, on both mobile and desktop
 const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
 const JITTER_MULT     = 0.2   // fraction of each item's own per-cell slack used for jitter — kept small (per the client's grid sketch) so items read as snapped to their cell, with stagger doing the work of the "slight overlap" look rather than free-roaming jitter.
@@ -100,7 +101,7 @@ const MAX_OVERLAP_FRAC = 0.15
 // ─── responsive sizing constants ─────────────────────────────────────────────
 
 interface SizeConstants {
-  defaultW: number
+  postitW: number
   edgeMargin: number
   cellW: number
   cellH: number
@@ -153,6 +154,10 @@ function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, c
   const boost = isMobile ? MOBILE_TILE_BOOST : 1
   const scale = (isMobile ? MOBILE_SCALE : 1) * boost
   const defaultW = DEFAULT_W * scale
+  // Postits get their own width, separate from defaultW (still used below as
+  // the cellW floor) — 20% smaller than defaultW alone would give, on mobile
+  // and desktop alike.
+  const postitW = defaultW * POSTIT_SCALE
   const k = EDGE_MARGIN_FRAC
 
   const targetTileW = viewW * TILE_VIEWPORT_SLACK * boost
@@ -167,7 +172,7 @@ function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, c
   const cellW = Math.max(defaultW * 0.3, Math.min(cellWFromWidth, cellWFromHeight))
   const cellH = cellW * POSTIT_ASPECT
   const edgeMargin = k * cellW
-  return { defaultW, edgeMargin, cellW, cellH }
+  return { postitW, edgeMargin, cellW, cellH }
 }
 
 function computeTileGrid(shape: { cols: number; rows: number }, c: SizeConstants) {
@@ -293,7 +298,7 @@ function placeVariantCells(
   c: SizeConstants,
 ): Placed[] {
   const { cols, rows } = grid
-  const { defaultW, edgeMargin, cellW, cellH } = c
+  const { postitW, edgeMargin, cellW, cellH } = c
 
   // Postits sort first (ties broken by the usual random order) so they claim
   // whichever cells are prioritized below — normally that's a no-op, but
@@ -415,7 +420,7 @@ function placeVariantCells(
     // snaps to the grid regardless of how cell size is computed.
     let w: number
     if (item._type === 'canvasPostit') {
-      w = Math.round(defaultW * POSTIT_SIZE)
+      w = Math.round(postitW * POSTIT_SIZE)
     } else {
       const sizeTier = SIZE_TIERS[Math.floor(rand(seed + placementKey + ':size:v' + variant, 0) * SIZE_TIERS.length)]
       w = Math.round(cellW * sizeTier)
@@ -1473,7 +1478,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
           <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
             <span className="block font-build text-3xl leading-none">studio VIA</span>
           </Link>
-            <div style={{ marginTop: 30 }}>
+            <div style={{ marginTop: 5 }}>
           <Link href={`/${locale}/projects`} className="inline-block pointer-events-auto">
               {lines.map((line, i) => (
                 <span key={i} className="block font-build text-3xl leading-none">{line}</span>
