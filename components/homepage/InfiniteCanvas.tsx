@@ -1494,91 +1494,11 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     [items]
   )
 
-  // Which placements in tile (0,0) — the one under the fixed center text at
-  // the starting pan offset (0,0) — sit behind that text, frozen at the
-  // moment this layout was built rather than re-checked on every render.
-  // Tile (0,0) is exactly centered under the text at offset (0,0), so this
-  // reduces to a zone centered on canvas-origin, independent of viewport
-  // size. Recomputes only when the layout itself changes (a real resize
-  // regenerates the whole grid anyway, so old keys wouldn't match the new
-  // layout regardless) — never as a side effect of panning. Applies
-  // uniformly to postits too — homePostitRelocations below actively moves
-  // any postit that would otherwise land under the text (or outside the
-  // viewport) somewhere that doesn't, so this only ever actually hides one
-  // in the rare case no safe slot was available to relocate it to, and
-  // "never shows under the title" wins over "always visible somewhere" for
-  // that corner case.
-  const initialHiddenKeys = useMemo(() => {
-    const keys = new Set<string>()
-    const variant0 = layouts[0]
-    if (!variant0 || (textBlockSize.w === 0 && textBlockSize.h === 0)) return keys
-    const TEXT_CLEARANCE = 24 // px of breathing room around the measured text, each side
-    const halfW = textBlockSize.w / 2 + TEXT_CLEARANCE
-    const halfH = textBlockSize.h / 2 + TEXT_CLEARANCE
-    for (const [placementKey, pos] of variant0.entries()) {
-      if (pos.x < halfW && pos.x + pos.w > -halfW && pos.y < halfH && pos.y + pos.h > -halfH) {
-        keys.add(placementKey)
-      }
-    }
-    return keys
-  }, [layouts, textBlockSize])
-
   // A layout placement's key isn't always an item's own _key — a grid cell
   // left over with no item to fill it (see the "filler" pass in
   // placeVariant) gets a repeated item under a synthetic key — so look the
   // real item up by its itemKey rather than assuming placementKey === _key.
   const itemsByKey = useMemo(() => new Map(items.map((it) => [it._key, it])), [items])
-
-  // Postits only ever show their real content in tile (0,0) — the one
-  // visible at the starting pan offset — so no amount of panning reveals a
-  // second copy of the same note; panning back to the start is the only way
-  // to see it again. Every other tile's occurrence of that slot instead
-  // shows a photo, picked once here (not per render) for every variant's
-  // postit placement — informed by what's *actually* nearby, both within
-  // the tile and across each of the 8 bordering variants via the same
-  // tileVariant/neighborVariant relationship resolveBoundaryAdjacency
-  // relies on — rather than picked blind.
-  const postitSubstitutes = useMemo(() => {
-    const subs = new Map<string, CanvasItemType>()
-    if (seed === null) return subs
-    const pool = items.filter((it) => it._type !== 'canvasPostit')
-    if (pool.length === 0) return subs
-
-    const PROXIMITY = Math.max(sizeConstants.cellW, sizeConstants.cellH) * 1.6
-
-    for (let v = 0; v < N_VARIANTS; v++) {
-      const layout = layouts[v]
-      if (!layout) continue
-      for (const [placementKey, pos] of layout.entries()) {
-        const item = itemsByKey.get(pos.itemKey)
-        if (!item || item._type !== 'canvasPostit') continue
-
-        const cx = pos.x + pos.w / 2, cy = pos.y + pos.h / 2
-        const nearbyKeys = new Set<string>()
-
-        for (const [, p2] of layout.entries()) {
-          if (p2 === pos) continue
-          const cx2 = p2.x + p2.w / 2, cy2 = p2.y + p2.h / 2
-          if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
-        }
-        for (const [dx, dy] of NEIGHBOR_OFFSETS) {
-          const nLayout = layouts[neighborVariant(v, dx, dy)]
-          if (!nLayout) continue
-          for (const [, p2] of nLayout.entries()) {
-            const cx2 = p2.x + p2.w / 2 + dx * grid.tileW
-            const cy2 = p2.y + p2.h / 2 + dy * grid.tileH
-            if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
-          }
-        }
-
-        const ranked = [...pool].sort((a, b) =>
-          rand(seed + a._key + ':' + placementKey + ':sub', 0) - rand(seed + b._key + ':' + placementKey + ':sub', 0)
-        )
-        subs.set(`${v}:${placementKey}`, ranked.find((it) => !nearbyKeys.has(it._key)) ?? ranked[0])
-      }
-    }
-    return subs
-  }, [layouts, items, itemsByKey, grid, sizeConstants, seed])
 
   // "Close to center" (MIN_CENTER_CLEARANCE inside placeVariantCells) isn't
   // the same as "inside the viewport" — a tile's own footprint is
@@ -1615,12 +1535,11 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       pos.x < halfW && pos.x + pos.w > -halfW && pos.y < halfH && pos.y + pos.h > -halfH
     const fits = isMobile ? fitsPartially : fitsFully
 
-    // A candidate slot also can't sit under the fixed title text — it's an
-    // ordinary photo's slot, not exempt the way a postit's own spot is (see
-    // initialHiddenKeys below), so relocating a postit onto one invisibly
-    // hides it behind that logic instead of actually fixing anything: it
-    // vanishes from its old spot (replaced by a substitute) without
-    // actually appearing at the new one.
+    // A candidate slot also can't sit under the fixed title text — initialHiddenKeys
+    // below exempts a relocation *target* from its own text check (it defers to the
+    // clearsText check already done here, against the postit's real rendered box,
+    // rather than the candidate's own possibly-larger original box), so getting this
+    // right here is what makes that exemption safe.
     const TEXT_CLEARANCE = 24
     const textHalfW = textBlockSize.w / 2 + TEXT_CLEARANCE
     const textHalfH = textBlockSize.h / 2 + TEXT_CLEARANCE
@@ -1628,11 +1547,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       !(pos.x < textHalfW && pos.x + pos.w > -textHalfW && pos.y < textHalfH && pos.y + pos.h > -textHalfH)
 
     // A postit needs relocating either because it doesn't fit the viewport
-    // or because it overlaps the text itself — initialHiddenKeys exempts
-    // postits from being hidden there (hiding the only copy that ever
-    // renders would mean never showing it at all), but that exemption is
-    // meant as a last-resort safety net for when no candidate slot is
-    // available below, not a license to sit on top of the title normally.
+    // or because it overlaps the text itself.
     const needsRelocation = (pos: { x: number; y: number; w: number; h: number }) => !fits(pos) || !clearsText(pos)
 
     const entries = Array.from(variant0.entries())
@@ -1696,7 +1611,91 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
       atSlot.set(pick.k, item)
     }
     return { toSlot, atSlot }
-  }, [layouts, itemsByKey, postitItemKeys, viewSize, textBlockSize, isMobile])
+  }, [layouts, itemsByKey, postitItemKeys, viewSize, textBlockSize, isMobile, sizeConstants])
+
+  // Which placements in tile (0,0) — the one under the fixed center text at
+  // the starting pan offset (0,0) — sit behind that text, frozen at the
+  // moment this layout was built rather than re-checked on every render.
+  // Tile (0,0) is exactly centered under the text at offset (0,0), so this
+  // reduces to a zone centered on canvas-origin, independent of viewport
+  // size. Recomputes only when the layout itself changes (a real resize
+  // regenerates the whole grid anyway, so old keys wouldn't match the new
+  // layout regardless) — never as a side effect of panning. A relocation
+  // *target* slot is exempt: what actually renders there is a postit whose
+  // own (smaller, centered) box was already checked against the text zone
+  // in homePostitRelocations above, not this slot's own (often larger,
+  // original-photo-shaped) box, so re-checking that original box here could
+  // hide a postit that was deliberately — and correctly — placed to clear
+  // the text, purely because the photo slot it displaced happened to
+  // overlap it. A postit's own *vacated* slot gets no such exemption: it
+  // keeps the same footprint whether it shows the postit or a substitute
+  // photo, so if that footprint overlaps the text the substitute would too.
+  const initialHiddenKeys = useMemo(() => {
+    const keys = new Set<string>()
+    const variant0 = layouts[0]
+    if (!variant0 || (textBlockSize.w === 0 && textBlockSize.h === 0)) return keys
+    const TEXT_CLEARANCE = 24 // px of breathing room around the measured text, each side
+    const halfW = textBlockSize.w / 2 + TEXT_CLEARANCE
+    const halfH = textBlockSize.h / 2 + TEXT_CLEARANCE
+    for (const [placementKey, pos] of variant0.entries()) {
+      if (homePostitRelocations.atSlot.has(placementKey)) continue
+      if (pos.x < halfW && pos.x + pos.w > -halfW && pos.y < halfH && pos.y + pos.h > -halfH) {
+        keys.add(placementKey)
+      }
+    }
+    return keys
+  }, [layouts, textBlockSize, homePostitRelocations])
+
+  // Postits only ever show their real content in tile (0,0) — the one
+  // visible at the starting pan offset — so no amount of panning reveals a
+  // second copy of the same note; panning back to the start is the only way
+  // to see it again. Every other tile's occurrence of that slot instead
+  // shows a photo, picked once here (not per render) for every variant's
+  // postit placement — informed by what's *actually* nearby, both within
+  // the tile and across each of the 8 bordering variants via the same
+  // tileVariant/neighborVariant relationship resolveBoundaryAdjacency
+  // relies on — rather than picked blind.
+  const postitSubstitutes = useMemo(() => {
+    const subs = new Map<string, CanvasItemType>()
+    if (seed === null) return subs
+    const pool = items.filter((it) => it._type !== 'canvasPostit')
+    if (pool.length === 0) return subs
+
+    const PROXIMITY = Math.max(sizeConstants.cellW, sizeConstants.cellH) * 1.6
+
+    for (let v = 0; v < N_VARIANTS; v++) {
+      const layout = layouts[v]
+      if (!layout) continue
+      for (const [placementKey, pos] of layout.entries()) {
+        const item = itemsByKey.get(pos.itemKey)
+        if (!item || item._type !== 'canvasPostit') continue
+
+        const cx = pos.x + pos.w / 2, cy = pos.y + pos.h / 2
+        const nearbyKeys = new Set<string>()
+
+        for (const [, p2] of layout.entries()) {
+          if (p2 === pos) continue
+          const cx2 = p2.x + p2.w / 2, cy2 = p2.y + p2.h / 2
+          if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
+        }
+        for (const [dx, dy] of NEIGHBOR_OFFSETS) {
+          const nLayout = layouts[neighborVariant(v, dx, dy)]
+          if (!nLayout) continue
+          for (const [, p2] of nLayout.entries()) {
+            const cx2 = p2.x + p2.w / 2 + dx * grid.tileW
+            const cy2 = p2.y + p2.h / 2 + dy * grid.tileH
+            if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
+          }
+        }
+
+        const ranked = [...pool].sort((a, b) =>
+          rand(seed + a._key + ':' + placementKey + ':sub', 0) - rand(seed + b._key + ':' + placementKey + ':sub', 0)
+        )
+        subs.set(`${v}:${placementKey}`, ranked.find((it) => !nearbyKeys.has(it._key)) ?? ranked[0])
+      }
+    }
+    return subs
+  }, [layouts, items, itemsByKey, grid, sizeConstants, seed])
 
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
