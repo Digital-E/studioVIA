@@ -63,12 +63,19 @@ const DEFAULT_W   = 397  // 414 * 1.2 — postit size (the one tile type sized o
 // 1.38) alongside DEFAULT_W above so every tile type grows together.
 // const TILE_VIEWPORT_SLACK = 1.38
 const TILE_VIEWPORT_SLACK = 1.7
-const VARIANT_GRID = 4  // K — variants form a KxK repeating pattern (see tileVariant)
+const VARIANT_GRID = 6  // K — variants form a KxK repeating pattern (see tileVariant)
 const N_VARIANTS  = VARIANT_GRID * VARIANT_GRID
 const FALLBACK_ASPECT = 4 / 3  // width/height used when an item has no aspect-ratio metadata (e.g. video)
 const POSTIT_ASPECT   = 1.1    // postit card height = width * POSTIT_ASPECT (a fixed UI card, not a photo)
 const POSTIT_SIZE     = 1      // postits always render at this size tier — never randomized
 const POSTIT_SCALE = 0.8 // postits render 20% smaller than DEFAULT_W alone would give, on both mobile and desktop
+const POSTIT_MOBILE_SCALE = 0.75 // applied on top of POSTIT_SCALE on mobile only — a card this close to the viewport's own width needs to shrink further than desktop's crop/spacing room allows
+// Minimum real gap two postit cards must keep from each other — enough to
+// read as two distinct cards, not a seam. Shared by buildAllLayouts' pixel-
+// level overlap resolution and the component's own viewport-containment
+// relocation (see homePostitRelocations), so both enforce the same spacing.
+const MIN_POSTIT_GAP = 32
+const IMAGE_DESKTOP_SCALE = 1.2 // photos (not postits) render 20% larger than their own cell on desktop — mobile is untouched
 const TILE_ASPECT     = 2800 / 1900  // target tile width:height ratio
 const STAGGER_FRAC    = 0.06  // fraction of cell size alternating cells are offset by — a soft corner bias, not a proof
 const JITTER_MULT     = 0.2   // fraction of each item's own per-cell slack used for jitter — kept small (per the client's grid sketch) so items read as snapped to their cell, with stagger doing the work of the "slight overlap" look rather than free-roaming jitter.
@@ -156,8 +163,10 @@ function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, c
   const defaultW = DEFAULT_W * scale
   // Postits get their own width, separate from defaultW (still used below as
   // the cellW floor) — 20% smaller than defaultW alone would give, on mobile
-  // and desktop alike.
-  const postitW = defaultW * POSTIT_SCALE
+  // and desktop alike, with a further mobile-only reduction (a card this
+  // close to the viewport's own width leaves little room to crop/relocate
+  // it into place — see homePostitRelocations in the component below).
+  const postitW = defaultW * POSTIT_SCALE * (isMobile ? POSTIT_MOBILE_SCALE : 1)
   const k = EDGE_MARGIN_FRAC
 
   const targetTileW = viewW * TILE_VIEWPORT_SLACK * boost
@@ -169,7 +178,19 @@ function computeSizeConstants(isMobile: boolean, viewW: number, viewH: number, c
   const cellWFromHeight = targetTileH / (rows * POSTIT_ASPECT + 2 * k)
   // Never smaller than DEFAULT_W's own scale would suggest is sane — guards
   // against a degenerate viewport (e.g. mid-resize at 0) collapsing cells.
-  const cellW = Math.max(defaultW * 0.3, Math.min(cellWFromWidth, cellWFromHeight))
+  // Scaling cellW up (desktop only) after the viewport-fit math above, not
+  // folding IMAGE_DESKTOP_SCALE into that math itself, means the "fit
+  // TILE_VIEWPORT_SLACK worth of viewport" target is computed first and
+  // this just inflates the result — so a bigger cell naturally means fewer,
+  // larger cells show at once (panning reveals more), rather than trying to
+  // keep the same density at a size nothing was fit for. Every photo's own
+  // size is a fraction of cellW (SIZE_TIERS below), so this alone makes
+  // photos bigger; postits are sized from postitW instead, so they keep
+  // their own absolute size and just sit in a roomier cell. Applied to the
+  // cell itself (not as a separate per-item size cap) so the invariant the
+  // collision system relies on — an item never exceeds its own cell, so t=0
+  // is always a safe fallback to shrink back to — holds at any scale.
+  const cellW = Math.max(defaultW * 0.3, Math.min(cellWFromWidth, cellWFromHeight)) * (isMobile ? 1 : IMAGE_DESKTOP_SCALE)
   const cellH = cellW * POSTIT_ASPECT
   const edgeMargin = k * cellW
   return { postitW, edgeMargin, cellW, cellH }
@@ -383,23 +404,53 @@ function placeVariantCells(
     const cb = b % cols, rb = Math.floor(b / cols)
     return Math.abs(ca - cb) <= 1 && Math.abs(ra - rb) <= 1
   }
-  // Two postits sharing a single neighboring image cell (each reaching for
-  // it from opposite sides in pass 2b) is what actually drives postit/postit
-  // overlap — not just them sitting in literally touching cells. That can
-  // only happen when their home cells are within Chebyshev distance 2 of
-  // each other (so some third cell is adjacent to both), so postits need a
-  // wider exclusion zone than the distance-1 check used everywhere else.
-  const cellsAreNearForPostits = (a: number, b: number) => {
-    const ca = a % cols, ra = Math.floor(a / cols)
-    const cb = b % cols, rb = Math.floor(b / cols)
-    return Math.abs(ca - cb) <= 2 && Math.abs(ra - rb) <= 2
+  // Postits only ever show in tile (0,0) now (see the render loop in the
+  // component below), which is exactly where the fixed center text sits —
+  // so rather than just "somewhere interior", a postit's cell is the
+  // closest-to-center cell (by col/row distance) that still satisfies its
+  // distance-from-other-postits tier, found by scanning every remaining
+  // cell instead of taking the first match in cellIndices' own (edge-vs-
+  // interior, then random) order.
+  const centerCol = (cols - 1) / 2, centerRow = (rows - 1) / 2
+  const distToCenter = (cellIndex: number) => {
+    const col = cellIndex % cols, row = Math.floor(cellIndex / cols)
+    const dc = col - centerCol, dr = row - centerRow
+    return dc * dc + dr * dr
   }
+  const pickClosestToCenter = (predicate: (c: number) => boolean): number => {
+    let bestAt = -1, bestDist = Infinity
+    remainingCells.forEach((c, idx) => {
+      if (!predicate(c)) return
+      const d = distToCenter(c)
+      if (d < bestDist) { bestDist = d; bestAt = idx }
+    })
+    return bestAt
+  }
+  // The single cell (or, on an even grid, the 4 cells) dead-center is also
+  // where the fixed title text sits — a postit landing exactly there would
+  // get hidden by initialHiddenKeys below (it overlaps the text), and
+  // because a postit only ever renders in this one tile now, "hidden" would
+  // mean "never visible at all". Preferred, not required: if the grid is
+  // too small to spare it, the plain closest-to-center search still runs.
+  const MIN_CENTER_CLEARANCE = 0.6
+  const clearsCenter = (c: number) => distToCenter(c) >= MIN_CENTER_CLEARANCE
+
   const pickCellFor = (itemKey: string, isPostit: boolean): number => {
     const used = usedCellsByItemKey.get(itemKey) ?? []
     let pickAt = -1
     if (isPostit) {
-      pickAt = remainingCells.findIndex((c) => !usedPostitCells.some((u) => cellsAreNearForPostits(c, u)))
-      if (pickAt === -1) pickAt = remainingCells.findIndex((c) => !usedPostitCells.some((u) => cellsAreNear(c, u)))
+      // Only the narrow distance-1 exclusion (min. 2 cells apart) guards
+      // cell choice here — not the wider distance-2 exclusion an earlier
+      // version of this also preferred, which existed to stop two postits
+      // from both reaching for the same neighboring photo. That's now the
+      // pixel-level MIN_POSTIT_GAP system's job (buildAllLayouts), which
+      // measures actual final positions rather than cell distance, so it
+      // still catches that case; keeping the wide exclusion *here* too
+      // meant the first postit claiming dead-center could rule out every
+      // other near-center cell for the second one, pushing it to a far
+      // edge — losing "close to center" for a guarantee duplicated below.
+      pickAt = pickClosestToCenter((c) => clearsCenter(c) && !usedPostitCells.some((u) => cellsAreNear(c, u)))
+      if (pickAt === -1) pickAt = pickClosestToCenter((c) => !usedPostitCells.some((u) => cellsAreNear(c, u)))
     } else {
       pickAt = remainingCells.findIndex((c) => !used.some((u) => cellsAreNear(c, u)))
     }
@@ -589,9 +640,8 @@ function resolveBoundaryAdjacency(
   // Cell-index distance across this boundary, for every in-bounds (k1,k2)
   // offset-from-the-seam pair whose total distance is `dist` — k1 steps back
   // from v's own edge, k2 steps in from nv's edge. dist=1 is the two tiles'
-  // literal touching cells; dist=2 is one cell further apart, which (same
-  // reasoning as cellsAreNearForPostits above) is the actual minimum needed
-  // for a real gap, not just "not the identical cell".
+  // literal touching cells; dist=2 is one cell further apart, which is the
+  // actual minimum needed for a real gap, not just "not the identical cell".
   const borderingCells = (dx: number, dy: number, dist: number): [number, number, number, number][] => {
     const out: [number, number, number, number][] = []
     for (let k1 = 0; k1 < dist; k1++) {
@@ -731,11 +781,6 @@ function buildAllLayouts(
   type Ref = { v: number; i: number }
   const ord = (r: Ref) => r.v * 1_000_000 + r.i
   const getPlaced = (r: Ref) => allPlaced[r.v][r.i]
-
-  // Two postits need to end up at least this far apart (see capFor/violatesFor
-  // below) — declared up here because couldOverlap also needs it: a pair
-  // that will never literally touch can still end up closer than this.
-  const MIN_POSTIT_GAP = 32 // px — enough to read as two distinct cards, not a seam
 
   // Constraints are built from ACTUAL geometry, not grid-cell adjacency: a
   // postit is deliberately shoved across a cell boundary and can stick out
@@ -1419,9 +1464,34 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
     [gridShape, sizeConstants]
   )
 
+  // Postits stay in the grid-filling pool exactly as they always were —
+  // placeVariantCells never needs to know "only tile (0,0) shows this for
+  // real" at all, so the filler-repeat count (and with it, the duplicate-
+  // adjacency guarantees the rest of this grid already relies on) never
+  // changes from what it would be with postits simply rendered everywhere.
+  //
+  // Two earlier versions of "only show postits once" instead excluded
+  // postits from the pool (either for every tile, or for a second,
+  // separately-computed layout used everywhere but tile (0,0)) on the
+  // theory that the postit slot would then just be an ordinary leftover
+  // cell for the existing filler logic to handle safely. Measured against
+  // this same grid with postits simply left in — which produces zero
+  // same-image adjacency — both of those produced real, visible duplicates:
+  // removing even 2 items from the pool means 2 more filler repeats are
+  // needed to fill the same grid, and that small a reduction was enough to
+  // push the per-item distance exclusion past where it reliably finds a
+  // free cell. This keeps the pool exactly as large as it's always been and
+  // instead swaps the box's *content* at render time for non-home tiles
+  // (postitSubstitutes below) — informed by actual nearby items, not by
+  // changing how many of them there are.
   const layouts = useMemo(
     () => seed !== null ? buildAllLayouts(items, seed, grid, sizeConstants) : [],
     [items, seed, grid, sizeConstants]
+  )
+
+  const postitItemKeys = useMemo(
+    () => new Set(items.filter((it) => it._type === 'canvasPostit').map((it) => it._key)),
+    [items]
   )
 
   // Which placements in tile (0,0) — the one under the fixed center text at
@@ -1431,7 +1501,13 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   // reduces to a zone centered on canvas-origin, independent of viewport
   // size. Recomputes only when the layout itself changes (a real resize
   // regenerates the whole grid anyway, so old keys wouldn't match the new
-  // layout regardless) — never as a side effect of panning.
+  // layout regardless) — never as a side effect of panning. Applies
+  // uniformly to postits too — homePostitRelocations below actively moves
+  // any postit that would otherwise land under the text (or outside the
+  // viewport) somewhere that doesn't, so this only ever actually hides one
+  // in the rare case no safe slot was available to relocate it to, and
+  // "never shows under the title" wins over "always visible somewhere" for
+  // that corner case.
   const initialHiddenKeys = useMemo(() => {
     const keys = new Set<string>()
     const variant0 = layouts[0]
@@ -1452,6 +1528,175 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
   // placeVariant) gets a repeated item under a synthetic key — so look the
   // real item up by its itemKey rather than assuming placementKey === _key.
   const itemsByKey = useMemo(() => new Map(items.map((it) => [it._key, it])), [items])
+
+  // Postits only ever show their real content in tile (0,0) — the one
+  // visible at the starting pan offset — so no amount of panning reveals a
+  // second copy of the same note; panning back to the start is the only way
+  // to see it again. Every other tile's occurrence of that slot instead
+  // shows a photo, picked once here (not per render) for every variant's
+  // postit placement — informed by what's *actually* nearby, both within
+  // the tile and across each of the 8 bordering variants via the same
+  // tileVariant/neighborVariant relationship resolveBoundaryAdjacency
+  // relies on — rather than picked blind.
+  const postitSubstitutes = useMemo(() => {
+    const subs = new Map<string, CanvasItemType>()
+    if (seed === null) return subs
+    const pool = items.filter((it) => it._type !== 'canvasPostit')
+    if (pool.length === 0) return subs
+
+    const PROXIMITY = Math.max(sizeConstants.cellW, sizeConstants.cellH) * 1.6
+
+    for (let v = 0; v < N_VARIANTS; v++) {
+      const layout = layouts[v]
+      if (!layout) continue
+      for (const [placementKey, pos] of layout.entries()) {
+        const item = itemsByKey.get(pos.itemKey)
+        if (!item || item._type !== 'canvasPostit') continue
+
+        const cx = pos.x + pos.w / 2, cy = pos.y + pos.h / 2
+        const nearbyKeys = new Set<string>()
+
+        for (const [, p2] of layout.entries()) {
+          if (p2 === pos) continue
+          const cx2 = p2.x + p2.w / 2, cy2 = p2.y + p2.h / 2
+          if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
+        }
+        for (const [dx, dy] of NEIGHBOR_OFFSETS) {
+          const nLayout = layouts[neighborVariant(v, dx, dy)]
+          if (!nLayout) continue
+          for (const [, p2] of nLayout.entries()) {
+            const cx2 = p2.x + p2.w / 2 + dx * grid.tileW
+            const cy2 = p2.y + p2.h / 2 + dy * grid.tileH
+            if (Math.hypot(cx2 - cx, cy2 - cy) < PROXIMITY) nearbyKeys.add(p2.itemKey)
+          }
+        }
+
+        const ranked = [...pool].sort((a, b) =>
+          rand(seed + a._key + ':' + placementKey + ':sub', 0) - rand(seed + b._key + ':' + placementKey + ':sub', 0)
+        )
+        subs.set(`${v}:${placementKey}`, ranked.find((it) => !nearbyKeys.has(it._key)) ?? ranked[0])
+      }
+    }
+    return subs
+  }, [layouts, items, itemsByKey, grid, sizeConstants, seed])
+
+  // "Close to center" (MIN_CENTER_CLEARANCE inside placeVariantCells) isn't
+  // the same as "inside the viewport" — a tile's own footprint is
+  // TILE_VIEWPORT_SLACK times bigger than the viewport it's fit to, so a
+  // postit a couple of cells off dead-center can still land past the
+  // visible edge. If a postit's actual computed box doesn't fully fit the
+  // starting viewport, it takes over whichever *other* home-tile slot does
+  // fit, is closest to center, and isn't already claimed by another
+  // relocated postit or too close to one — i.e. a photo there gets replaced
+  // rather than leave the postit clipped. The postit's own vacated slot
+  // falls back to the exact same proximity-aware substitute photo a
+  // non-home tile would show there (postitSubstitutes above), so nothing
+  // is simply dropped from the grid.
+  const homePostitRelocations = useMemo(() => {
+    // postit's own placementKey -> the other placementKey it renders at instead
+    const toSlot = new Map<string, string>()
+    // placementKey a postit now occupies -> that postit's item
+    const atSlot = new Map<string, CanvasItemType>()
+    const variant0 = layouts[0]
+    if (!variant0 || viewSize.w === 0 || viewSize.h === 0) return { toSlot, atSlot }
+
+    const halfW = viewSize.w / 2, halfH = viewSize.h / 2
+    const EDGE_MARGIN = 16 // keep a little breathing room from the true viewport edge
+    // A postit this close to the viewport's own width leaves little room to
+    // demand full containment on a narrow phone screen — requiring it there
+    // would mean almost no candidate slot ever qualifies, so relocation
+    // would rarely even succeed. Mobile only requires some real overlap
+    // with the viewport instead of none at all; desktop still requires the
+    // whole card to be visible.
+    const fitsFully = (pos: { x: number; y: number; w: number; h: number }) =>
+      pos.x >= -halfW + EDGE_MARGIN && pos.x + pos.w <= halfW - EDGE_MARGIN &&
+      pos.y >= -halfH + EDGE_MARGIN && pos.y + pos.h <= halfH - EDGE_MARGIN
+    const fitsPartially = (pos: { x: number; y: number; w: number; h: number }) =>
+      pos.x < halfW && pos.x + pos.w > -halfW && pos.y < halfH && pos.y + pos.h > -halfH
+    const fits = isMobile ? fitsPartially : fitsFully
+
+    // A candidate slot also can't sit under the fixed title text — it's an
+    // ordinary photo's slot, not exempt the way a postit's own spot is (see
+    // initialHiddenKeys below), so relocating a postit onto one invisibly
+    // hides it behind that logic instead of actually fixing anything: it
+    // vanishes from its old spot (replaced by a substitute) without
+    // actually appearing at the new one.
+    const TEXT_CLEARANCE = 24
+    const textHalfW = textBlockSize.w / 2 + TEXT_CLEARANCE
+    const textHalfH = textBlockSize.h / 2 + TEXT_CLEARANCE
+    const clearsText = (pos: { x: number; y: number; w: number; h: number }) =>
+      !(pos.x < textHalfW && pos.x + pos.w > -textHalfW && pos.y < textHalfH && pos.y + pos.h > -textHalfH)
+
+    // A postit needs relocating either because it doesn't fit the viewport
+    // or because it overlaps the text itself — initialHiddenKeys exempts
+    // postits from being hidden there (hiding the only copy that ever
+    // renders would mean never showing it at all), but that exemption is
+    // meant as a last-resort safety net for when no candidate slot is
+    // available below, not a license to sit on top of the title normally.
+    const needsRelocation = (pos: { x: number; y: number; w: number; h: number }) => !fits(pos) || !clearsText(pos)
+
+    const entries = Array.from(variant0.entries())
+    const postitEntries = entries.filter(([, pos]) => postitItemKeys.has(pos.itemKey))
+    const outOfView = postitEntries.filter(([, pos]) => needsRelocation(pos))
+    if (outOfView.length === 0) return { toSlot, atSlot }
+
+    const settled = postitEntries.filter(([, pos]) => !needsRelocation(pos)).map(([, pos]) => pos)
+    const farEnough = (pos: { x: number; y: number; w: number; h: number }) => settled.every((s) => {
+      const gx = Math.max(s.x - (pos.x + pos.w), pos.x - (s.x + s.w), 0)
+      const gy = Math.max(s.y - (pos.y + pos.h), pos.y - (s.y + s.h), 0)
+      const gap = (gx > 0 && gy > 0) ? Math.hypot(gx, gy) : Math.max(gx, gy)
+      return gap >= MIN_POSTIT_GAP
+    })
+
+    // A candidate's own box is a photo's — whatever size tier placeVariantCells
+    // gave it, not a postit's. The postit that actually ends up there renders
+    // at its own fixed square (postitW) centered on that slot regardless (see
+    // the render loop's forcedSquare), so a candidate can only be judged by
+    // *that* box: checking the candidate's own (possibly smaller) box let a
+    // postit the slot was sized for already pass, then overflow back into
+    // the text/edge zone once forced to its real, often-bigger size.
+    const postitW = Math.round(sizeConstants.postitW)
+    const postitBoxAt = (pos: { x: number; y: number; w: number; h: number; itemKey: string }) => {
+      const cx = pos.x + pos.w / 2, cy = pos.y + pos.h / 2
+      return { x: cx - postitW / 2, y: cy - postitW / 2, w: postitW, h: postitW, itemKey: pos.itemKey }
+    }
+
+    const claimed = new Set<string>()
+    for (const [postitKey, postitPos] of outOfView) {
+      const item = itemsByKey.get(postitPos.itemKey)
+      if (!item) continue
+      const unclaimedBoxes = entries
+        .filter(([, pos]) => !postitItemKeys.has(pos.itemKey))
+        .map(([k, pos]) => ({ k, box: postitBoxAt(pos) }))
+        .filter((c) => !claimed.has(c.k))
+
+      // Not every candidate needs to clear the real goal (full containment
+      // on desktop) — only clearing the text is non-negotiable (see
+      // initialHiddenKeys: a postit under text there gets hidden outright,
+      // which is worse than clipped). So the viewport check relaxes in
+      // three steps — full containment, then any real overlap at all, then
+      // (if truly nothing clears text either way) drop the viewport
+      // requirement entirely — trying each in turn, farthest-reaching last,
+      // rather than giving up the moment the strict version comes up empty.
+      const rank = (c: { box: typeof unclaimedBoxes[number]['box'] }) =>
+        !clearsText(c.box) ? -1 : fitsFully(c.box) ? 3 : fitsPartially(c.box) ? 2 : 1
+      const candidates = unclaimedBoxes
+        .map((c) => ({ ...c, rank: rank(c), distSq: (c.box.x + c.box.w / 2) ** 2 + (c.box.y + c.box.h / 2) ** 2 }))
+        .filter((c) => c.rank > 0)
+        .sort((a, b) => b.rank - a.rank || a.distSq - b.distSq)
+
+      const bestRank = candidates[0]?.rank
+      const atBestRank = candidates.filter((c) => c.rank === bestRank)
+      const pick = atBestRank.find((c) => farEnough(c.box)) ?? atBestRank[0]
+      if (!pick) continue // nothing clears the text at all — leave it be
+
+      claimed.add(pick.k)
+      settled.push(pick.box)
+      toSlot.set(postitKey, pick.k)
+      atSlot.set(pick.k, item)
+    }
+    return { toSlot, atSlot }
+  }, [layouts, itemsByKey, postitItemKeys, viewSize, textBlockSize, isMobile])
 
   const tiles = visibleTiles(offset.x, offset.y, viewSize.w, viewSize.h, grid.tileW, grid.tileH)
 
@@ -1504,7 +1749,9 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
         }}
       >
         {seed !== null && tiles.map(({ tx, ty }) => {
-          const layout = layouts[tileVariant(tx, ty)]
+          const isHomeTile = tx === 0 && ty === 0
+          const variant = tileVariant(tx, ty)
+          const layout = layouts[variant]
           return (
             <Fragment key={`${tx}:${ty}`}>
               {/* This pan layer (`innerRef`) is promoted to its own GPU
@@ -1545,7 +1792,46 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                 // panning starts — neither of which is wanted. Only tile
                 // (0,0) itself is ever eligible, even though other tiles
                 // can share its same variant-0 layout pattern.
-                if (tx === 0 && ty === 0 && initialHiddenKeys.has(placementKey)) return null
+                if (isHomeTile && initialHiddenKeys.has(placementKey)) return null
+
+                // Home-tile viewport containment (see homePostitRelocations
+                // above) takes priority over everything else below: a slot
+                // a postit was relocated *to* shows that postit instead of
+                // its own original photo, sized to the postit's own square
+                // and centered in the slot's box rather than stretched to
+                // whatever aspect ratio that box had; a postit's own
+                // vacated slot falls back to the same substitute photo a
+                // non-home tile would show there.
+                //
+                // Outside the one home tile (and barring the above), a
+                // postit's box shows its precomputed substitute photo
+                // instead (see postitSubstitutes above) — never the postit
+                // itself.
+                const relocatedPostitHere = isHomeTile ? homePostitRelocations.atSlot.get(placementKey) : undefined
+                const vacatedByRelocation = isHomeTile && homePostitRelocations.toSlot.has(placementKey)
+                const renderItem = relocatedPostitHere
+                  ?? (vacatedByRelocation ? (postitSubstitutes.get(`0:${placementKey}`) ?? item)
+                  : (item._type === 'canvasPostit' && !isHomeTile) ? (postitSubstitutes.get(`${variant}:${placementKey}`) ?? item)
+                  : item)
+                // A postit standing in for a photo is forced to its own
+                // square, centered in the slot's box, rather than stretched
+                // to that box's shape. A photo standing in for a postit (the
+                // far more common case — every non-home occurrence, plus a
+                // postit's own vacated home-tile slot) goes the other way:
+                // every postit slot is square, so reusing the slot's own box
+                // as-is would force that photo into a 1:1 crop regardless of
+                // its real shape. It keeps the slot's width and sizes its
+                // own height off its *own* aspect ratio instead, centered
+                // vertically so it doesn't shift its neighbors.
+                const isSubstitutePhoto = renderItem !== item && renderItem._type !== 'canvasPostit'
+                const renderW = relocatedPostitHere ? Math.round(sizeConstants.postitW) : pos.w
+                const renderH = relocatedPostitHere
+                  ? renderW
+                  : isSubstitutePhoto
+                  ? Math.round(renderW / itemAspect(renderItem))
+                  : pos.h
+                const renderX = relocatedPostitHere ? pos.x + (pos.w - renderW) / 2 : pos.x
+                const renderY = (relocatedPostitHere || isSubstitutePhoto) ? pos.y + (pos.h - renderH) / 2 : pos.y
 
                 // No per-item spread on a repeat visit — a short, uniform
                 // fade instead of replaying the full first-load stagger.
@@ -1557,12 +1843,12 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                   <div
                     key={placementKey}
                     data-ci={placementKey}
-                    data-cw={pos.w}
-                    data-ch={pos.h}
+                    data-cw={renderW}
+                    data-ch={renderH}
                     style={{
                       position: 'absolute',
-                      left:   pos.x + tx * grid.tileW,
-                      top:    pos.y + ty * grid.tileH,
+                      left:   renderX + tx * grid.tileW,
+                      top:    renderY + ty * grid.tileH,
                       // Smaller items stack above larger ones, so an overlap
                       // never hides the smaller (usually more detailed) image.
                       // Subtracting (not dividing) preserves a distinct
@@ -1581,9 +1867,9 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       // cut it off, exactly because the size-based z-index
                       // above only accounts for the image's own area, not the
                       // caption hanging off the bottom of it.
-                      zIndex: item._type === 'canvasPostit'
+                      zIndex: renderItem._type === 'canvasPostit'
                         ? 2_000_000_000
-                        : item.credit
+                        : renderItem.credit
                         ? 1_900_000_000 - Math.round(pos.w * pos.h)
                         : 1_000_000_000 - Math.round(pos.w * pos.h),
                       // GPU-composited transform, not a layout property like
@@ -1618,7 +1904,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       }),
                     }}
                   >
-                    <CanvasItem item={item} locale={locale} width={pos.w} height={pos.h} />
+                    <CanvasItem item={renderItem} locale={locale} width={renderW} height={renderH} />
                   </div>
                 )
               })}
