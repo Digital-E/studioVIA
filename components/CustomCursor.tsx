@@ -19,9 +19,9 @@ export type CursorMode = 'idle' | 'grab' | 'link'
 // unaffected by how this overlay is drawn), which is what reads as
 // "imprecise" when aiming at a link.
 const CURSOR_ICONS: Record<CursorMode, { src: string; w: number; h: number; hotspotXPct: number; hotspotYPct: number }> = {
-  idle: { src: '/cursors/hand1.svg', w: 19.37 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE, hotspotXPct: 0.38, hotspotYPct: 0 },
-  grab: { src: '/cursors/hand2.svg', w: 18.76 * CURSOR_SCALE, h: 14.37 * CURSOR_SCALE, hotspotXPct: 0.50, hotspotYPct: 0 },
-  link: { src: '/cursors/hand3.svg', w: 18.76 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE, hotspotXPct: 0.27, hotspotYPct: 0 },
+  idle: { src: '/cursors/hand1.svg', w: 17.53 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE, hotspotXPct: 0.55, hotspotYPct: 0 },
+  grab: { src: '/cursors/hand2.svg', w: 15.07 * CURSOR_SCALE, h: 14.37 * CURSOR_SCALE, hotspotXPct: 0.51, hotspotYPct: 0 },
+  link: { src: '/cursors/hand3.svg', w: 18.95 * CURSOR_SCALE, h: 21.79 * CURSOR_SCALE, hotspotXPct: 0.39, hotspotYPct: 0 },
 }
 
 // Module-level (survives a component remount, e.g. locale switch, so a

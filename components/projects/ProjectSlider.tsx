@@ -168,13 +168,14 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-white px-6 md:px-40">
-      <div className="flex-1 min-h-0 flex items-center justify-center" style={{ containerType: 'size' }}>
+      <div className="flex-1 min-h-0 flex items-center justify-center">
         <div
           className={`relative transition-colors duration-300 ${loaded ? '' : 'bg-gray-100'}`}
           style={{
             aspectRatio: imageAR,
-            width: `min(100cqw, ${imageAR} * 100cqh)`,
-            height: `min(100cqh, 100cqw / ${imageAR})`,
+            width: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
           }}
         >
           <Image

@@ -1903,7 +1903,7 @@ export default function InfiniteCanvas({ items, centerText, locale }: Props) {
                       }),
                     }}
                   >
-                    <CanvasItem item={renderItem} locale={locale} width={renderW} height={renderH} />
+                    <CanvasItem item={renderItem} locale={locale} width={renderW} height={renderH} priority={isHomeTile} />
                   </div>
                 )
               })}

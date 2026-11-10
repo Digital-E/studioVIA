@@ -1,7 +1,7 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { memo, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { urlFor } from '@/lib/sanity'
 import type { CanvasItem as CanvasItemType } from '@/lib/types'
 import PostIt from './PostIt'
@@ -73,7 +73,7 @@ function CanvasVideo({ src, w, h }: { src: string; w: number; h: number }) {
   )
 }
 
-export default function CanvasItem({ item, locale, width, height }: { item: CanvasItemType; locale: string; width?: number; height?: number }) {
+function CanvasItem({ item, locale, width, height, priority = false }: { item: CanvasItemType; locale: string; width?: number; height?: number; priority?: boolean }) {
   const w = width ?? DEFAULT_WIDTH
   const h = height ?? Math.round(w * 0.75)
   const projectSlug = item.linkedProject?.slug?.current
@@ -115,7 +115,7 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
             style={{ width: w, height: h, opacity: image.loaded ? 1 : 0, transition: 'opacity 0.3s ease' }}
             className="object-cover max-w-none"
             draggable={false}
-            priority
+            priority={priority}
             onLoad={image.onLoad}
           />
           {item.credit && (
@@ -128,3 +128,10 @@ export default function CanvasItem({ item, locale, width, height }: { item: Canv
 
   return null
 }
+
+// Panning re-renders InfiniteCanvas's offset state ~10x/sec while a
+// drag/fling is active, which re-maps every visible tile's items — memoized
+// so an unchanged item (the overwhelming majority, since only the container
+// div's position actually moves) skips its own render entirely instead of
+// re-running image URL building and hook bodies on every tick.
+export default memo(CanvasItem)
