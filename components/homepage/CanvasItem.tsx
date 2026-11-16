@@ -85,7 +85,7 @@ function CanvasItem({ item, locale, width, height, priority = false }: { item: C
   if (item._type === 'canvasPostit') {
     return (
       <ItemLink href={href} className={href ? 'block' : undefined} style={{ width: w, height: h }}>
-        <PostIt item={item} locale={locale} />
+        <PostIt item={item} locale={locale} width={w} />
       </ItemLink>
     )
   }
@@ -103,7 +103,7 @@ function CanvasItem({ item, locale, width, height, priority = false }: { item: C
     }
 
     if (item.image) {
-      const imageUrl = urlFor(item.image).width(w * 2).url()
+      const imageUrl = urlFor(item.image).url()
       return (
         <ItemLink href={href} className={href ? 'group block' : 'group'}>
           <Image
@@ -116,6 +116,7 @@ function CanvasItem({ item, locale, width, height, priority = false }: { item: C
             className="object-cover max-w-none"
             draggable={false}
             priority={priority}
+            sizes={`${w}px`}
             onLoad={image.onLoad}
           />
           {item.credit && (

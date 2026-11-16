@@ -8,6 +8,7 @@ import type { CanvasItem } from '@/lib/types'
 interface PostItProps {
   item: CanvasItem
   locale: string
+  width: number
 }
 
 const titleComponents: PortableTextComponents = {
@@ -18,9 +19,9 @@ const titleComponents: PortableTextComponents = {
   },
 }
 
-export default function PostIt({ item, locale }: PostItProps) {
+export default function PostIt({ item, locale, width }: PostItProps) {
   const titleBlocks = locale === 'de' ? item.title?.de : (item.title?.fr ?? item.title?.de)
-  const backImageUrl = item.backImage ? urlFor(item.backImage).width(600).url() : null
+  const backImageUrl = item.backImage ? urlFor(item.backImage).url() : null
   const backgroundColor = item.backgroundColor?.hex || 'var(--color-postit)'
   const textColor = item.textColor?.hex || 'var(--color-black)'
 
@@ -48,7 +49,7 @@ export default function PostIt({ item, locale }: PostItProps) {
               alt=""
               fill
               className="object-cover"
-              sizes="300px"
+              sizes={`${width}px`}
             />
           ) : (
             <div className="w-full h-full bg-gray-200" />

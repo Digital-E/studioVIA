@@ -18,7 +18,7 @@ const richTextComponents: PortableTextComponents = {
 export default function StudioContent({ data, locale }: StudioContentProps) {
   const leftColumn = locale === 'de' ? data.leftColumn?.de : (data.leftColumn?.fr ?? data.leftColumn?.de)
   const rightColumn = locale === 'de' ? data.rightColumn?.de : (data.rightColumn?.fr ?? data.rightColumn?.de)
-  const photoUrl = data.photo ? urlFor(data.photo).width(900).url() : null
+  const photoUrl = data.photo ? urlFor(data.photo).url() : null
 
   const [mobilePhotoLoaded, setMobilePhotoLoaded] = useState(false)
   const [photoLoaded, setPhotoLoaded] = useState(false)
@@ -80,7 +80,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
                 alt="Studio VIA team"
                 fill
                 className={`object-cover transition-opacity duration-300 ${mobilePhotoLoaded ? 'opacity-100' : 'opacity-0'}`}
-                sizes="100vw"
+                sizes="calc(100vw - 2.5rem)"
                 onLoad={() => setMobilePhotoLoaded(true)}
               />
             </div>
@@ -141,7 +141,7 @@ export default function StudioContent({ data, locale }: StudioContentProps) {
                 alt="Studio VIA team"
                 fill
                 className={`object-cover transition-opacity duration-300 ${photoLoaded ? 'opacity-100' : 'opacity-0'}`}
-                sizes="50vw"
+                sizes="calc(50vw - 1.625rem)"
                 onLoad={() => setPhotoLoaded(true)}
               />
             )}

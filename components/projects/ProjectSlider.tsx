@@ -164,7 +164,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
 
   if (!slide.image) return null
 
-  const imageUrl = urlFor(slide.image).width(3200).url()
+  const imageUrl = urlFor(slide.image).url()
 
   return (
     <div className="w-full h-full flex flex-col bg-white px-6 md:px-40">
@@ -182,7 +182,7 @@ function MediaSlide({ slide, locale }: { slide: Slide; locale: string }) {
             src={imageUrl}
             alt=""
             fill
-            sizes="(min-width: 768px) 80vw, 100vw"
+            sizes="(min-width: 768px) calc(100vw - 20rem), calc(100vw - 3rem)"
             quality={90}
             className={`object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={handleLoad}

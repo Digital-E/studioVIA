@@ -85,7 +85,7 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
 
         const thumbnailVideoUrl = project.thumbnailVideo?.asset?.url
         const thumbnailUrl = project.thumbnail
-          ? urlFor(project.thumbnail).width(480).url()
+          ? urlFor(project.thumbnail).url()
           : null
 
         const href = project.slug?.current ? `/${locale}/projects/${project.slug.current}` : null
@@ -118,7 +118,7 @@ export default function ProjectsList({ years, locale }: ProjectsListProps) {
                     alt={title ?? ''}
                     fill
                     className="object-contain"
-                    sizes="10vw"
+                    sizes="(min-width: 768px) calc(16.67vw - 0.42rem), 6rem"
                   />
                 </div>
               ) : null}
